@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>カキコ帳 | ちぃむぐりる</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1 class="site-title">🔥 ちぃむぐりる 🔥</h1>
+    <nav>
+      <ul>
+        <li><a href="index.html">ホーム</a></li>
+        <li><a href="blog.html">みんなの日記</a></li>
+        <li><a href="gallery.html">ちぃむ画廊</a></li>
+        <li><a href="bbs.html" class="active">掲示板</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>📝 みんなの掲示板</h2>
+      <p>足あとや一言メッセージ、なんでも自由に書いてね！送信すると下のログに反映されるぞ！（反映まで数分かかることがあります）</p>
+    </section>
+
+    <!-- 1. 投稿用Googleフォーム -->
+    <section class="card">
+      <h2>✍️ 書き込む</h2>
+      <iframe src="ここにGoogleフォームの埋め込みURL" width="100%" height="420" frameborder="0" marginheight="0" marginwidth="0" style="border: 1px solid #e5e8ed; border-radius: 8px;">読み込んでいます…</iframe>
+    </section>
+
+    <!-- 2. カキコ一覧（公開スプレッドシート） -->
+    <section class="card">
+      <h2>📋 みんなのカキコ一覧</h2>
+      <iframe src="ここにスプレッドシートのウェブ公開埋め込みURL" width="100%" height="350" style="border: 1px solid #e5e8ed; border-radius: 8px;"></iframe>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 ちぃむぐりる</p>
+  </footer>
+</body>
+</html>
