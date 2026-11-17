@@ -65,7 +65,7 @@
     <!-- 📤 ログイン不要・画像アップロードフォーム（コメント欄付き） -->
     <section class="card">
       <h2>🖼️ 作品を投稿する</h2>
-      <form id="upload-form">
+      <div id="upload-form">
         <div class="form-group">
           <label>お名前 *</label>
           <input type="text" id="art-name" placeholder="例：きゅぷぅ" required>
@@ -82,9 +82,10 @@
           <label>画像ファイル（JPG / PNGなど） *</label>
           <input type="file" id="art-file" accept="image/*" required>
         </div>
-        <button type="submit" id="submit-btn" class="submit-btn">画廊に飾る！</button>
+        <!-- ★ここを type="button" にしてクリックイベントで確実に処理するように変更！ -->
+        <button type="button" id="submit-btn" class="submit-btn" onclick="submitArt()">画廊に飾る！</button>
         <p id="status-msg" style="margin-top: 10px; font-weight: bold; text-align: center;"></p>
-      </form>
+      </div>
     </section>
 
     <!-- 🖼️ 展示一覧エリア -->
@@ -131,26 +132,34 @@
       });
     }
 
-    document.getElementById("upload-form").addEventListener("submit", async function(e) {
-      e.preventDefault();
+    // 投稿ボタンを押したときに走るメイン関数
+    async function submitArt() {
+      const name = document.getElementById("art-name").value.trim();
+      const title = document.getElementById("art-title").value.trim();
+      const comment = document.getElementById("art-comment").value.trim();
+      const fileInput = document.getElementById("art-file");
       const btn = document.getElementById("submit-btn");
       const status = document.getElementById("status-msg");
-      const fileInput = document.getElementById("art-file");
-      const file = fileInput.files[0];
 
-      if (!file) return;
+      if (!name || !title || fileInput.files.length === 0) {
+        alert("お名前、タイトル、画像ファイルは必須だよ！");
+        return;
+      }
+
+      const file = fileInput.files[0];
 
       btn.disabled = true;
       btn.textContent = "アップロード中...（数秒かかります）";
+      status.style.color = "#333";
       status.textContent = "";
 
       const reader = new FileReader();
       reader.onload = async function() {
         const base64Data = reader.result.split(",")[1];
         const payload = {
-          name: document.getElementById("art-name").value,
-          title: document.getElementById("art-title").value,
-          comment: document.getElementById("art-comment").value,
+          name: name,
+          title: title,
+          comment: comment,
           fileName: file.name,
           mimeType: file.type,
           image: base64Data
@@ -164,9 +173,14 @@
 
           status.style.color = "#2e7d32";
           status.textContent = "✨ 投稿完了！作品が追加されました。";
-          document.getElementById("upload-form").reset();
           
-          setTimeout(loadGallery, 2000);
+          // フォームをクリア
+          document.getElementById("art-name").value = "";
+          document.getElementById("art-title").value = "";
+          document.getElementById("art-comment").value = "";
+          fileInput.value = "";
+          
+          setTimeout(loadGallery, 3000);
         } catch (err) {
           status.style.color = "#d9534f";
           status.textContent = "❌ エラーが発生しました。";
@@ -177,7 +191,7 @@
         }
       };
       reader.readAsDataURL(file);
-    });
+    }
 
     async function loadGallery() {
       const listArea = document.getElementById("gallery-list");
@@ -216,4 +230,20 @@
           listArea.appendChild(card);
         });
       } catch (err) {
-        listArea.innerHTML = '<p style="color: #d9534f; text-align
+        listArea.innerHTML = '<p style="color: #d9534f; text-align: center; grid-column: 1 / -1;">作品の読み込みに失敗しました。</p>';
+        console.error(err);
+      }
+    }
+
+    // 文字エスケープ用の安全対策関数
+    function escapeHTML(str) {
+      return str.replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      }[tag] || tag));
+    }
+
+    // ページを開いたときに自動で読み込む
+    window.onload = loadGallery;
+  </script>
+</body>
+</html>
