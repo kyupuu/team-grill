@@ -108,6 +108,29 @@
     const GAS_URL = "https://script.google.com/macros/s/AKfycby2r_NRzBfwQFhOPPA3pFu7W8rxo67pAVZ86lqbQyTPIiEgHiTDfOn5GbXVLYnXl_r6/exec";
     const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR5ThxZYdlVKzZlB5lHkFBiHIxw5q54cobkDibPLceglpXOmpNsZ4D9s5Wit04a2DwoNBoT9K-liQEm/pub?output=csv";
 
+    // 簡易CSVパーサー関数
+    function parseCSV(text) {
+      const lines = text.split("\n");
+      return lines.map(line => {
+        const row = [];
+        let inQuotes = false;
+        let entry = "";
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            row.push(entry.trim());
+            entry = "";
+          } else {
+            entry += char;
+          }
+        }
+        row.push(entry.trim());
+        return row;
+      });
+    }
+
     document.getElementById("upload-form").addEventListener("submit", async function(e) {
       e.preventDefault();
       const btn = document.getElementById("submit-btn");
@@ -136,19 +159,18 @@
         try {
           await fetch(GAS_URL, {
             method: "POST",
-            mode: "no-cors",
-            headers: { "Content-Type": "text/plain" },
             body: JSON.stringify(payload)
           });
 
           status.style.color = "#2e7d32";
-          status.textContent = "✅ 投稿完了！少し待ってから下のリストを更新してね。";
+          status.textContent = "✨ 投稿完了！作品が追加されました。";
           document.getElementById("upload-form").reset();
           
-          setTimeout(loadGallery, 3000);
+          setTimeout(loadGallery, 2000);
         } catch (err) {
           status.style.color = "#d9534f";
-          status.textContent = "❌ エラーが発生しました。URL設定を確認してね。";
+          status.textContent = "❌ エラーが発生しました。";
+          console.error(err);
         } finally {
           btn.disabled = false;
           btn.textContent = "画廊に飾る！";
@@ -165,13 +187,33 @@
         const rows = parseCSV(csvText);
         const items = rows.slice(1).reverse();
 
-        if (items.length === 0) {
+        if (items.length === 0 || (items.length === 1 && items[0][0] === "")) {
           listArea.innerHTML = '<p style="color: #888; text-align: center; grid-column: 1 / -1;">まだ作品がありません。最初の1枚を飾ろう！</p>';
           return;
         }
 
         listArea.innerHTML = "";
         items.forEach(cols => {
+          if (cols.length < 5) return;
           const time = cols[0] || "";
           const name = cols[1] || "名無し";
-          const title =
+          const title = cols[2] || "無題";
+          const comment = cols[3] || "";
+          const imageUrl = cols[4] || "";
+
+          if (!imageUrl) return;
+
+          const card = document.createElement("div");
+          card.className = "art-card";
+          card.innerHTML = `
+            <img src="${imageUrl}" alt="${title}" onclick="window.open('${imageUrl}', '_blank')">
+            <div class="art-info">
+              <h3 class="art-title">${escapeHTML(title)}</h3>
+              ${comment ? `<p class="art-comment">${escapeHTML(comment)}</p>` : ''}
+              <p class="art-meta">作者: ${escapeHTML(name)} / ${time}</p>
+            </div>
+          `;
+          listArea.appendChild(card);
+        });
+      } catch (err) {
+        listArea.innerHTML = '<p style="color: #d9534f; text-align
