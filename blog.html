@@ -19,8 +19,8 @@
 
   <main>
     <section class="card">
-      <h2>📝 みんなの日記</h2>
-      <p>メンバーの日常や出来事をまとめた共同ブログ！載せたい文章や写真があったらLINEに投げてね！</p>
+      <h2>📝 みんなの日記 ＆ 掲示板</h2>
+      <p>メンバーの日常や出来事をまとめた共同ブログ！感想や足あとを下のフォームから自由に書いていってね！</p>
     </section>
 
     <!-- ▼ 記事1（新しい記事はここより上にコピーして追加！） ▼ -->
@@ -29,14 +29,105 @@
       <p style="font-size: 0.85em; color: #555; margin-bottom: 10px;">
         <strong>投稿者：</strong> きゅぷぅ ／ <strong>日付：</strong> 2026.11.17
       </p>
-      <p>ついに「ちぃむぐりる」の共同ブログができたぞー！みんなからの投稿待ってるぜ！</p>
+      <p>ついに「ちぃむぐりる」掲示板が完成したぞー！みんなからの投稿待ってるぜ！</p>
     </section>
     <!-- ▲ 記事1ここまで ▲ -->
 
+    <!-- ✍️ 書き込み用Googleフォーム -->
+    <section class="card">
+      <h2>✍️ メッセージを書く</h2>
+      <p>一言メッセージや足あとをどうぞ！送信すると下のリストに反映されるよ。</p>
+      <iframe src="ここにGoogleフォームの埋め込みURL" width="100%" height="420" frameborder="0" marginheight="0" marginwidth="0" style="border: 1px solid #e5e8ed; border-radius: 8px;">読み込んでいます…</iframe>
+    </section>
+
+    <!-- 📋 みんなのカキコ一覧（JavaScript自動生成） -->
+    <section class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eeeeee; padding-bottom: 8px; margin-bottom: 15px;">
+        <h2 style="border: none; margin: 0; padding: 0;">みんなのカキコ一覧</h2>
+        <button onclick="loadKakiko()" style="background-color: #f0f2f5; border: 1px solid #d0d5dd; border-radius: 15px; padding: 5px 12px; cursor: pointer; font-weight: bold; font-size: 0.85em;">🔄 更新</button>
+      </div>
+      
+      <!-- ここにJavaScriptが書き込みカードを自動生成する！ -->
+      <div id="bbs-list">
+        <p style="color: #888; text-align: center;">カキコを読み込み中...</p>
+      </div>
+    </section>
   </main>
 
   <footer>
     <p>&copy; 2026 ちぃむぐりる</p>
   </footer>
+
+  <!-- ⚡ スプレッドシートのデータを掲示板デザインに変換するJavaScript -->
+  <script>
+    // ▼ ここにスプレッドシートの「カンマ区切り値（.csv）」公開URLを貼る！ ▼
+    const CSV_URL = "ここにスプレッドシートのCSV公開URL";
+
+    async function loadKakiko() {
+      const listArea = document.getElementById("bbs-list");
+      listArea.innerHTML = '<p style="color: #888; text-align: center;">読み込み中...</p>';
+
+      try {
+        const response = await fetch(CSV_URL + "&t=" + new Date().getTime());
+        const csvText = await response.text();
+        const rows = parseCSV(csvText);
+        const posts = rows.slice(1).reverse();
+
+        if (posts.length === 0) {
+          listArea.innerHTML = '<p style="color: #888; text-align: center;">まだカキコがありません。一番乗りしよう！</p>';
+          return;
+        }
+
+        listArea.innerHTML = "";
+
+        posts.forEach((cols, index) => {
+          const time = cols[0] || "";
+          const name = cols[1] || "名無し";
+          const msg  = cols[2] || "";
+          const postNum = posts.length - index;
+
+          const item = document.createElement("div");
+          item.style.cssText = "background-color: #f9fafb; border: 1px solid #e5e8ed; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px;";
+          
+          const safeName = escapeHTML(name);
+          const safeMsg = escapeHTML(msg).replace(/\n/g, "<br>");
+
+          item.innerHTML = `
+            <div style="font-size: 0.85em; color: #666; margin-bottom: 6px; border-bottom: 1px dashed #e0e0e0; padding-bottom: 4px;">
+              <strong style="color: #222;">[${postNum}] ${safeName}</strong>
+              <span style="float: right; font-size: 0.9em;">${escapeHTML(time)}</span>
+            </div>
+            <div style="color: #333; line-height: 1.5; word-break: break-word;">${safeMsg}</div>
+          `;
+          listArea.appendChild(item);
+        });
+      } catch (e) {
+        listArea.innerHTML = '<p style="color: #d9534f; text-align: center;">読み込みに失敗しました。CSV公開URLを確認してね！</p>';
+      }
+    }
+
+    function parseCSV(text) {
+      const result = [];
+      let row = [], col = "", inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i], next = text[i + 1];
+        if (c === '"' && inQuotes && next === '"') { col += '"'; i++; }
+        else if (c === '"') { inQuotes = !inQuotes; }
+        else if (c === ',' && !inQuotes) { row.push(col); col = ""; }
+        else if ((c === '\r' || c === '\n') && !inQuotes) {
+          if (c === '\r' && next === '\n') i++;
+          row.push(col); result.push(row); row = []; col = "";
+        } else { col += c; }
+      }
+      if (col || row.length) { row.push(col); result.push(row); }
+      return result;
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+
+    loadKakiko();
+  </script>
 </body>
 </html>
