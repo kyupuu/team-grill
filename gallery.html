@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ちぃむ画廊 | ちぃむぐりる</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1 class="site-title">🔥 ちぃむぐりる 🔥</h1>
+    <nav>
+      <ul>
+        <li><a href="index.html">ホーム</a></li>
+        <li><a href="blog.html">みんなの日記</a></li>
+        <li><a href="gallery.html" class="active">ちぃむ画廊</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>🎨 ちぃむ画廊</h2>
+      <p>メンバーが描いた神絵や落書きを展示するギャラリーです。画像をタップすると大きく拡大して見られるぞ！</p>
+    </section>
+
+    <section class="card">
+      <h2>展示作品一覧</h2>
+      
+      <!-- ▼ 作品1（新しい絵を追加するときはこの塊をコピー！） ▼ -->
+      <div style="text-align: center; margin-top: 20px; padding-bottom: 15px; border-bottom: 1px dashed #7cc6fe;">
+        <img src="art01.png" class="zoomable-img" alt="作品1" style="max-width: 100%; height: auto;">
+        <p style="margin-top: 8px; font-weight: bold;">『作品タイトル』</p>
+        <p style="font-size: 0.9em; color: #555;">作者：〇〇 ／ コメント：一言メッセージ</p>
+      </div>
+      <!-- ▲ 作品1ここまで ▲ -->
+
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 ちぃむぐりる</p>
+  </footer>
+
+  <!-- 画像拡大用モーダル -->
+  <div id="image-modal" onclick="closeModal()">
+    <img id="modal-img">
+  </div>
+  <script>
+    function openModal(src) {
+      document.getElementById("image-modal").style.display = "flex";
+      document.getElementById("modal-img").src = src;
+    }
+    function closeModal() {
+      document.getElementById("image-modal").style.display = "none";
+    }
+    document.addEventListener("click", function(e) {
+      if (e.target.classList.contains("zoomable-img")) {
+        openModal(e.target.src);
+      }
+    });
+  </script>
+</body>
+</html>
