@@ -4,6 +4,45 @@
   <meta charset="UTF-8">
   <title>ちぃむ画廊 | ちぃむぐりる</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    /* 画廊用の追加デザイン（白ベース） */
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9em; color: #333; }
+    .form-group input[type="text"],
+    .form-group input[type="file"],
+    .form-group textarea {
+      width: 100%; box-sizing: border-box; padding: 10px;
+      border: 1px solid #d0d5dd; border-radius: 6px; background: #fff; font-size: 0.95em;
+      font-family: inherit;
+    }
+    .form-group textarea { resize: vertical; height: 80px; }
+    .submit-btn {
+      background-color: #222; color: #fff; border: none; border-radius: 6px;
+      padding: 12px 24px; font-weight: bold; cursor: pointer; font-size: 1em; width: 100%;
+    }
+    .submit-btn:disabled { background-color: #999; cursor: not-allowed; }
+    
+    /* ギャラリーのグリッドレイアウト */
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 15px;
+    }
+    .art-card {
+      background: #f9fafb; border: 1px solid #e5e8ed; border-radius: 8px;
+      overflow: hidden; display: flex; flex-direction: column;
+    }
+    .art-card img {
+      width: 100%; height: 220px; object-fit: cover; background: #eee;
+      cursor: pointer; transition: opacity 0.2s;
+    }
+    .art-card img:hover { opacity: 0.85; }
+    .art-info { padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+    .art-title { font-weight: bold; font-size: 1.05em; color: #222; margin: 0; }
+    .art-comment { font-size: 0.9em; color: #444; background: #f0f2f5; padding: 6px 8px; border-radius: 4px; margin: 4px 0; word-break: break-all; }
+    .art-meta { font-size: 0.8em; color: #666; margin: 0; }
+  </style>
 </head>
 <body>
   <header>
@@ -20,44 +59,16 @@
   <main>
     <section class="card">
       <h2>🎨 ちぃむ画廊</h2>
-      <p>メンバーが描いた神絵や落書きを展示するギャラリーです。画像をタップすると大きく拡大して見られるぞ！</p>
+      <p>メンバーが描いたイラストやスクショの展示室！下のフォームからログインなしで直接投稿できるよ。</p>
     </section>
 
+    <!-- 📤 ログイン不要・画像アップロードフォーム（コメント欄付き） -->
     <section class="card">
-      <h2>展示作品一覧</h2>
-      
-      <!-- ▼ 作品1（新しい絵を追加するときはこの塊をコピー！） ▼ -->
-      <div style="text-align: center; margin-top: 20px; padding-bottom: 15px; border-bottom: 1px dashed #7cc6fe;">
-        <img src="作品1.png" class="zoomable-img" alt="作品1" style="max-width: 100%; height: auto;">
-        <p style="margin-top: 8px; font-weight: bold;">『作品タイトル』リムルさん</p>
-        <p style="font-size: 0.9em; color: #555;">作者：きゅぷぅ ／ コメント：BJJリクエストッ！</p>
-      </div>
-      <!-- ▲ 作品1ここまで ▲ -->
-
-    </section>
-  </main>
-
-  <footer>
-    <p>&copy; 2026 ちぃむぐりる</p>
-  </footer>
-
-  <!-- 画像拡大用モーダル -->
-  <div id="image-modal" onclick="closeModal()">
-    <img id="modal-img">
-  </div>
-  <script>
-    function openModal(src) {
-      document.getElementById("image-modal").style.display = "flex";
-      document.getElementById("modal-img").src = src;
-    }
-    function closeModal() {
-      document.getElementById("image-modal").style.display = "none";
-    }
-    document.addEventListener("click", function(e) {
-      if (e.target.classList.contains("zoomable-img")) {
-        openModal(e.target.src);
-      }
-    });
-  </script>
-</body>
-</html>
+      <h2>🖼️ 作品を投稿する</h2>
+      <form id="upload-form">
+        <div class="form-group">
+          <label>お名前 *</label>
+          <input type="text" id="art-name" placeholder="例：きゅぷぅ" required>
+        </div>
+        <div class="form-group">
+          <label>作品のタイトル *</label>
