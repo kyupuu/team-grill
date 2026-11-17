@@ -72,3 +72,106 @@
         </div>
         <div class="form-group">
           <label>作品のタイトル *</label>
+          <input type="text" id="art-title" placeholder="例：リムルさん" required>
+        </div>
+        <div class="form-group">
+          <label>コメント（一言感想など）</label>
+          <textarea id="art-comment" placeholder="例：BJJリクエストッ！頑張って描いたよ"></textarea>
+        </div>
+        <div class="form-group">
+          <label>画像ファイル（JPG / PNGなど） *</label>
+          <input type="file" id="art-file" accept="image/*" required>
+        </div>
+        <button type="submit" id="submit-btn" class="submit-btn">画廊に飾る！</button>
+        <p id="status-msg" style="margin-top: 10px; font-weight: bold; text-align: center;"></p>
+      </form>
+    </section>
+
+    <!-- 🖼️ 展示一覧エリア -->
+    <section class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eeeeee; padding-bottom: 8px;">
+        <h2 style="border: none; margin: 0; padding: 0;">展示作品一覧</h2>
+        <button onclick="loadGallery()" style="background-color: #f0f2f5; border: 1px solid #d0d5dd; border-radius: 15px; padding: 5px 12px; cursor: pointer; font-weight: bold; font-size: 0.85em;">🔄 更新</button>
+      </div>
+
+      <div id="gallery-list" class="gallery-grid">
+        <p style="color: #888; text-align: center; grid-column: 1 / -1;">作品を読み込み中...</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 ちぃむぐりる</p>
+  </footer>
+
+  <script>
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxlMT_osZw9Jk5dCZZ1L_VjYb9gZ-72PmfZB6MyBP92nUkmP_gRogGWjzAa8u_2mYNr/exec";
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR5ThxZYdlVKzZlB5lHkFBiHIxw5q54cobkDibPLceglpXOmpNsZ4D9s5Wit04a2DwoNBoT9K-liQEm/pub?output=csv";
+
+    document.getElementById("upload-form").addEventListener("submit", async function(e) {
+      e.preventDefault();
+      const btn = document.getElementById("submit-btn");
+      const status = document.getElementById("status-msg");
+      const fileInput = document.getElementById("art-file");
+      const file = fileInput.files[0];
+
+      if (!file) return;
+
+      btn.disabled = true;
+      btn.textContent = "アップロード中...（数秒かかります）";
+      status.textContent = "";
+
+      const reader = new FileReader();
+      reader.onload = async function() {
+        const base64Data = reader.result.split(",")[1];
+        const payload = {
+          name: document.getElementById("art-name").value,
+          title: document.getElementById("art-title").value,
+          comment: document.getElementById("art-comment").value,
+          fileName: file.name,
+          mimeType: file.type,
+          image: base64Data
+        };
+
+        try {
+          await fetch(GAS_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify(payload)
+          });
+
+          status.style.color = "#2e7d32";
+          status.textContent = "✅ 投稿完了！少し待ってから下のリストを更新してね。";
+          document.getElementById("upload-form").reset();
+          
+          setTimeout(loadGallery, 3000);
+        } catch (err) {
+          status.style.color = "#d9534f";
+          status.textContent = "❌ エラーが発生しました。URL設定を確認してね。";
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "画廊に飾る！";
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    async function loadGallery() {
+      const listArea = document.getElementById("gallery-list");
+      try {
+        const response = await fetch(CSV_URL + "&t=" + new Date().getTime());
+        const csvText = await response.text();
+        const rows = parseCSV(csvText);
+        const items = rows.slice(1).reverse();
+
+        if (items.length === 0) {
+          listArea.innerHTML = '<p style="color: #888; text-align: center; grid-column: 1 / -1;">まだ作品がありません。最初の1枚を飾ろう！</p>';
+          return;
+        }
+
+        listArea.innerHTML = "";
+        items.forEach(cols => {
+          const time = cols[0] || "";
+          const name = cols[1] || "名無し";
+          const title =
