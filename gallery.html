@@ -42,6 +42,16 @@
     .art-title { font-weight: bold; font-size: 1.05em; color: #222; margin: 0; }
     .art-comment { font-size: 0.9em; color: #444; background: #f0f2f5; padding: 6px 8px; border-radius: 4px; margin: 4px 0; word-break: break-all; }
     .art-meta { font-size: 0.8em; color: #666; margin: 0; }
+
+    /* 🖼️ 画像クリック時のモーダル（ポップアップ）デザイン */
+    #image-modal {
+      display: none; position: fixed; z-index: 9999; left: 0; top: 0;
+      width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);
+      justify-content: center; align-items: center; cursor: pointer;
+    }
+    #image-modal img {
+      max-width: 90%; max-height: 90%; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
   </style>
 </head>
 <body>
@@ -62,7 +72,7 @@
       <p>メンバーが描いたイラストやスクショの展示室！下のフォームからログインなしで直接投稿できるよ。</p>
     </section>
 
-    <!-- 📤 ログイン不要・画像アップロードフォーム（コメント欄付き） -->
+    <!-- 📤 ログイン不要・画像アップロードフォーム -->
     <section class="card">
       <h2>🖼️ 作品を投稿する</h2>
       <div id="upload-form">
@@ -82,7 +92,6 @@
           <label>画像ファイル（JPG / PNGなど） *</label>
           <input type="file" id="art-file" accept="image/*" required>
         </div>
-        <!-- ★ここを type="button" にしてクリックイベントで確実に処理するように変更！ -->
         <button type="button" id="submit-btn" class="submit-btn" onclick="submitArt()">画廊に飾る！</button>
         <p id="status-msg" style="margin-top: 10px; font-weight: bold; text-align: center;"></p>
       </div>
@@ -101,6 +110,11 @@
     </section>
   </main>
 
+  <!-- 🔍 画像拡大用ポップアップ要素 -->
+  <div id="image-modal" onclick="closeModal()">
+    <img id="modal-img" src="" alt="拡大画像">
+  </div>
+
   <footer>
     <p>&copy; 2026 ちぃむぐりる</p>
   </footer>
@@ -109,7 +123,6 @@
     const GAS_URL = "https://script.google.com/macros/s/AKfycby2r_NRzBfwQFhOPPA3pFu7W8rxo67pAVZ86lqbQyTPIiEgHiTDfOn5GbXVLYnXl_r6/exec";
     const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR5ThxZYdlVKzZlB5lHkFBiHIxw5q54cobkDibPLceglpXOmpNsZ4D9s5Wit04a2DwoNBoT9K-liQEm/pub?output=csv";
 
-    // 簡易CSVパーサー関数
     function parseCSV(text) {
       const lines = text.split("\n");
       return lines.map(line => {
@@ -132,7 +145,7 @@
       });
     }
 
-    // 投稿ボタンを押したときに走るメイン関数
+    // 投稿処理
     async function submitArt() {
       const name = document.getElementById("art-name").value.trim();
       const title = document.getElementById("art-title").value.trim();
@@ -147,7 +160,6 @@
       }
 
       const file = fileInput.files[0];
-
       btn.disabled = true;
       btn.textContent = "アップロード中...（数秒かかります）";
       status.style.color = "#333";
@@ -157,30 +169,23 @@
       reader.onload = async function() {
         const base64Data = reader.result.split(",")[1];
         const payload = {
-          name: name,
-          title: title,
-          comment: comment,
-          fileName: file.name,
-          mimeType: file.type,
-          image: base64Data
+          name: name, title: title, comment: comment,
+          fileName: file.name, mimeType: file.type, image: base64Data
         };
 
         try {
-          await fetch(GAS_URL, {
-            method: "POST",
-            body: JSON.stringify(payload)
-          });
+          await fetch(GAS_URL, { method: "POST", body: JSON.stringify(payload) });
 
           status.style.color = "#2e7d32";
           status.textContent = "✨ 投稿完了！作品が追加されました。";
           
-          // フォームをクリア
           document.getElementById("art-name").value = "";
           document.getElementById("art-title").value = "";
           document.getElementById("art-comment").value = "";
           fileInput.value = "";
           
-          setTimeout(loadGallery, 3000);
+          // スプレッドシートの反映待ちを考慮して少し長めに待ってから再読み込み
+          setTimeout(loadGallery, 4000);
         } catch (err) {
           status.style.color = "#d9534f";
           status.textContent = "❌ エラーが発生しました。";
@@ -193,10 +198,12 @@
       reader.readAsDataURL(file);
     }
 
+    // 画廊の読み込み（スプレッドシートのキャッシュ対策：二重読み込み防止）
     async function loadGallery() {
       const listArea = document.getElementById("gallery-list");
       try {
-        const response = await fetch(CSV_URL + "&t=" + new Date().getTime());
+        // キャッシュを回避するために強力なランダムパラメータを付与
+        const response = await fetch(CSV_URL + "&t=" + new Date().getTime() + Math.random());
         const csvText = await response.text();
         const rows = parseCSV(csvText);
         const items = rows.slice(1).reverse();
@@ -213,20 +220,32 @@
           const name = cols[1] || "名無し";
           const title = cols[2] || "無題";
           const comment = cols[3] || "";
-          const imageUrl = cols[4] || "";
+          const imageUrl = cols.slice(4).join(","); // URLにカンマが含まれる場合の対策
 
           if (!imageUrl) return;
 
           const card = document.createElement("div");
           card.className = "art-card";
-          card.innerHTML = `
-            <img src="${imageUrl}" alt="${title}" onclick="window.open('${imageUrl}', '_blank')">
-            <div class="art-info">
-              <h3 class="art-title">${escapeHTML(title)}</h3>
-              ${comment ? `<p class="art-comment">${escapeHTML(comment)}</p>` : ''}
-              <p class="art-meta">作者: ${escapeHTML(name)} / ${time}</p>
-            </div>
+          
+          // 画像要素（クリックしたらポップアップが開く）
+          const img = document.createElement("img");
+          img.src = imageUrl;
+          img.alt = title;
+          img.onclick = function() {
+            openModal(imageUrl);
+          };
+          card.appendChild(img);
+
+          // 情報エリア
+          const info = document.createElement("div");
+          info.className = "art-info";
+          info.innerHTML = `
+            <h3 class="art-title">${escapeHTML(title)}</h3>
+            ${comment ? `<p class="art-comment">${escapeHTML(comment)}</p>` : ''}
+            <p class="art-meta">作者: ${escapeHTML(name)} / ${time}</p>
           `;
+          card.appendChild(info);
+
           listArea.appendChild(card);
         });
       } catch (err) {
@@ -235,14 +254,26 @@
       }
     }
 
-    // 文字エスケープ用の安全対策関数
+    // ポップアップを開く関数
+    function openModal(url) {
+      const modal = document.getElementById("image-modal");
+      const modalImg = document.getElementById("modal-img");
+      modalImg.src = url;
+      modal.style.display = "flex";
+    }
+
+    // ポップアップを閉じる関数
+    function closeModal() {
+      const modal = document.getElementById("image-modal");
+      modal.style.display = "none";
+    }
+
     function escapeHTML(str) {
       return str.replace(/[&<>'"]/g, tag => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
       }[tag] || tag));
     }
 
-    // ページを開いたときに自動で読み込む
     window.onload = loadGallery;
   </script>
 </body>
