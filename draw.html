@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>お絵描き部屋 | ちぃむぐりる</title>
   <link rel="stylesheet" href="style.css">
   <style>
@@ -12,39 +13,97 @@
       gap: 12px;
       margin-top: 10px;
     }
-    /* お絵描きキャンバス（スマホでも操作しやすいように調整） */
-    #paint-canvas {
+    /* レイヤーを重ねるための枠 */
+    .canvas-wrapper {
+      position: relative;
+      width: 400px;
+      height: 400px;
+      max-width: 100%;
+      aspect-ratio: 1 / 1;
       border: 2px solid #333;
       border-radius: 8px;
-      background: #fff;
-      cursor: crosshair;
-      touch-action: none; /* スマホで勝手に画面がスクロールしちゃうのを防ぐ */
-      max-width: 100%;
+      background-color: #ffffff;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      overflow: hidden;
+      touch-action: none;
     }
-    .tool-box {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
-      justify-content: center;
+    .canvas-wrapper canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+    }
+    /* レイヤーの重なり順（下塗り＝1、線画＝2） */
+    #layer-base { z-index: 1; }
+    #layer-line { z-index: 2; }
+
+    /* ツール・レイヤー・パレットのUI */
+    .panel-box {
       background: #f0f2f5;
       padding: 10px;
       border-radius: 8px;
       width: 100%;
       box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
-    .tool-box label { font-weight: bold; font-size: 0.9em; }
+    .tool-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .tool-row label { font-weight: bold; font-size: 0.85em; color: #333; }
     .tool-btn {
-      background: #fff; border: 1px solid #ccc; border-radius: 4px;
-      padding: 6px 12px; font-weight: bold; cursor: pointer; font-size: 0.9em;
+      background: #fff; border: 1px solid #ccc; border-radius: 6px;
+      padding: 6px 12px; font-weight: bold; cursor: pointer; font-size: 0.85em;
+      transition: all 0.15s;
     }
     .tool-btn.active { background: #222; color: #fff; border-color: #222; }
+    .layer-btn.active { background: #1976d2; color: #fff; border-color: #1976d2; }
+
+    /* パレット関連 */
+    .palette-area {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .color-swatch {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px #999;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .color-swatch:hover { transform: scale(1.15); }
+    .save-color-btn {
+      background: #fff; border: 1px dashed #666; border-radius: 12px;
+      padding: 4px 10px; font-size: 0.8em; font-weight: bold; cursor: pointer;
+    }
+
+    /* アクションボタン類 */
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
     .action-btn {
       background-color: #2e7d32; color: #fff; border: none; border-radius: 6px;
-      padding: 12px 20px; font-weight: bold; cursor: pointer; font-size: 1em; width: 100%;
+      padding: 12px 16px; font-weight: bold; cursor: pointer; font-size: 0.95em; flex: 2;
     }
     .action-btn:disabled { background-color: #999; cursor: not-allowed; }
+    .download-btn {
+      background-color: #0288d1; color: #fff; border: none; border-radius: 6px;
+      padding: 12px 16px; font-weight: bold; cursor: pointer; font-size: 0.95em; flex: 1;
+    }
     .form-group { margin-bottom: 12px; width: 100%; }
     .form-group label { display: block; font-weight: bold; margin-bottom: 4px; font-size: 0.9em; }
     .form-group input { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
@@ -65,35 +124,67 @@
 
   <main>
     <section class="card">
-      <h2>🖌️ お絵描き部屋</h2>
-      <p>ブラウザで直接お絵描きして、そのまま「ちぃむ画廊」に直行させちゃおう！</p>
+      <h2>🖌️ お絵描き部屋（強化版）</h2>
+      <p>レイヤー2枚（線画・色塗り）＆バケツ塗りつぶし対応！描いた絵は保存したり画廊に飾れるよ。</p>
     </section>
 
-    <!-- 🎨 お絵描き＆投稿フォーム -->
     <section class="card">
       <div class="canvas-container">
-        <!-- ツールバー -->
-        <div class="tool-box">
-          <div>
-            <label>ペン色:</label>
-            <input type="color" id="pen-color" value="#000000" style="vertical-align: middle; cursor: pointer;">
+        <!-- 🛠️ ツール＆レイヤー＆パレットパネル -->
+        <div class="panel-box">
+          <!-- レイヤー切り替え -->
+          <div class="tool-row">
+            <label>レイヤー:</label>
+            <button type="button" class="tool-btn layer-btn active" id="btn-layer-line" onclick="selectLayer('line')">✏️ レイヤー2（上・線画）</button>
+            <button type="button" class="tool-btn layer-btn" id="btn-layer-base" onclick="selectLayer('base')">🎨 レイヤー1（下・色塗り）</button>
           </div>
-          <div>
-            <label>太さ:</label>
-            <input type="range" id="pen-size" min="1" max="30" value="4" style="vertical-align: middle;">
+
+          <!-- ペン・消しゴム・バケツ・太さ -->
+          <div class="tool-row">
+            <button type="button" class="tool-btn active" id="mode-pen" onclick="setMode('pen')">ペン</button>
+            <button type="button" class="tool-btn" id="mode-bucket" onclick="setMode('bucket')">🪣 塗りつぶし</button>
+            <button type="button" class="tool-btn" id="mode-eraser" onclick="setMode('eraser')">消しゴム</button>
+            <div>
+              <label>太さ:</label>
+              <input type="range" id="pen-size" min="1" max="30" value="4" style="width: 80px; vertical-align: middle;">
+            </div>
+            <button type="button" class="tool-btn" onclick="clearCurrentLayer()" style="color: #d9534f;">今のレイヤー消去</button>
           </div>
-          <button type="button" class="tool-btn active" id="pen-mode" onclick="setMode('pen')">ペン</button>
-          <button type="button" class="tool-btn" id="eraser-mode" onclick="setMode('eraser')">消しゴム</button>
-          <button type="button" class="tool-btn" onclick="clearCanvas()" style="color: #d9534f;">全部消す</button>
+
+          <!-- カラーピッカー＆基本パレット -->
+          <div class="tool-row">
+            <input type="color" id="pen-color" value="#000000" style="width: 36px; height: 30px; border: none; cursor: pointer;">
+            <div class="palette-area" id="default-palette">
+              <!-- 基本色 -->
+              <div class="color-swatch" style="background:#000000;" onclick="pickColor('#000000')"></div>
+              <div class="color-swatch" style="background:#ffffff;" onclick="pickColor('#ffffff')"></div>
+              <div class="color-swatch" style="background:#ff3b30;" onclick="pickColor('#ff3b30')"></div>
+              <div class="color-swatch" style="background:#ff9500;" onclick="pickColor('#ff9500')"></div>
+              <div class="color-swatch" style="background:#ffcc00;" onclick="pickColor('#ffcc00')"></div>
+              <div class="color-swatch" style="background:#34c759;" onclick="pickColor('#34c759')"></div>
+              <div class="color-swatch" style="background:#007aff;" onclick="pickColor('#007aff')"></div>
+              <div class="color-swatch" style="background:#af52de;" onclick="pickColor('#af52de')"></div>
+              <div class="color-swatch" style="background:#ffcca8;" onclick="pickColor('#ffcca8')" title="肌色"></div>
+            </div>
+          </div>
+
+          <!-- マイカラー保存エリア -->
+          <div class="tool-row" style="border-top: 1px solid #ddd; padding-top: 8px;">
+            <button type="button" class="save-color-btn" onclick="saveCurrentColor()">＋ 今の色を保存</button>
+            <div class="palette-area" id="saved-palette"></div>
+          </div>
         </div>
 
-        <!-- お絵描き用キャンバス (横400px, 縦400px。スマホでも綺麗に収まる！) -->
-        <canvas id="paint-canvas" width="400" height="400"></canvas>
+        <!-- 🖼️ 2枚重ねキャンバス -->
+        <div class="canvas-wrapper" id="canvas-wrapper">
+          <canvas id="layer-base" width="400" height="400"></canvas>
+          <canvas id="layer-line" width="400" height="400"></canvas>
+        </div>
       </div>
 
       <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
 
-      <!-- 投稿情報入力フォーム -->
+      <!-- 投稿＆ダウンロードフォーム -->
       <div id="upload-form">
         <div class="form-group">
           <label>お名前 *</label>
@@ -101,13 +192,17 @@
         </div>
         <div class="form-group">
           <label>作品のタイトル *</label>
-          <input type="text" id="art-title" placeholder="例：今日の落書き" required>
+          <input type="text" id="art-title" placeholder="例：レイヤー駆使した神絵" required>
         </div>
         <div class="form-group">
           <label>一言コメント</label>
-          <input type="text" id="art-comment" placeholder="例：マウスで描いたら難しかった">
+          <input type="text" id="art-comment" placeholder="例：バケツ塗り便利すぎ">
         </div>
-        <button type="button" id="submit-btn" class="action-btn" onclick="submitDrawing()">画廊に飾る！</button>
+        
+        <div class="btn-group">
+          <button type="button" class="download-btn" onclick="downloadImage()">💾 画像保存</button>
+          <button type="button" id="submit-btn" class="action-btn" onclick="submitDrawing()">🎨 画廊に飾る！</button>
+        </div>
         <p id="status-msg" style="margin-top: 10px; font-weight: bold; text-align: center;"></p>
       </div>
     </section>
@@ -119,148 +214,112 @@
 
   <script>
     const GAS_URL = "https://script.google.com/macros/s/AKfycby2r_NRzBfwQFhOPPA3pFu7W8rxo67pAVZ86lqbQyTPIiEgHiTDfOn5GbXVLYnXl_r6/exec";
-    
-    const canvas = document.getElementById("paint-canvas");
-    const ctx = canvas.getContext("2d");
+
+    const canvases = {
+      line: document.getElementById("layer-line"),
+      base: document.getElementById("layer-base")
+    };
+    const contexts = {
+      line: canvases.line.getContext("2d", { willReadFrequently: true }),
+      base: canvases.base.getContext("2d", { willReadFrequently: true })
+    };
+
+    let activeLayer = "line"; // デフォルトは上の線画レイヤー
+    let mode = "pen"; // "pen", "bucket", "eraser"
     let isDrawing = false;
-    let mode = "pen"; // "pen" または "eraser"
 
-    // キャンバスの背景を白で初期化
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // 保存カラー配列（localStorageから読み込み）
+    let savedColors = JSON.parse(localStorage.getItem("chiimu_saved_colors") || "[]");
 
-    // 座標取得用（マウス＆スマホタッチ対応）
+    // 初期化
+    window.onload = function() {
+      renderSavedPalette();
+    };
+
+    // レイヤー選択
+    function selectLayer(layerName) {
+      activeLayer = layerName;
+      document.getElementById("btn-layer-line").classList.toggle("active", layerName === "line");
+      document.getElementById("btn-layer-base").classList.toggle("active", layerName === "base");
+    }
+
+    // ツールモード選択
+    function setMode(selectedMode) {
+      mode = selectedMode;
+      document.getElementById("mode-pen").classList.toggle("active", mode === "pen");
+      document.getElementById("mode-bucket").classList.toggle("active", mode === "bucket");
+      document.getElementById("mode-eraser").classList.toggle("active", mode === "eraser");
+    }
+
+    // パレットから色を選択
+    function pickColor(hex) {
+      document.getElementById("pen-color").value = hex;
+      if (mode === "eraser") setMode("pen"); // 消しゴム中ならペンに戻す
+    }
+
+    // 今の色をマイパレットに保存（最大8色）
+    function saveCurrentColor() {
+      const currentColor = document.getElementById("pen-color").value;
+      if (!savedColors.includes(currentColor)) {
+        savedColors.unshift(currentColor);
+        if (savedColors.length > 8) savedColors.pop();
+        localStorage.setItem("chiimu_saved_colors", JSON.stringify(savedColors));
+        renderSavedPalette();
+      }
+    }
+
+    // 保存したパレットを描画
+    function renderSavedPalette() {
+      const container = document.getElementById("saved-palette");
+      container.innerHTML = "";
+      savedColors.forEach(color => {
+        const swatch = document.createElement("div");
+        swatch.className = "color-swatch";
+        swatch.style.backgroundColor = color;
+        swatch.title = color;
+        swatch.onclick = () => pickColor(color);
+        container.appendChild(swatch);
+      });
+    }
+
+    // スマホ表示で縮小されたキャンバスでも正確な座標を取る計算
     function getPos(e) {
-      const rect = canvas.getBoundingClientRect();
+      const wrapper = document.getElementById("canvas-wrapper");
+      const rect = wrapper.getBoundingClientRect();
       const clientX = e.clientX || (e.touches && e.touches[0].clientX);
       const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+      const scaleX = 400 / rect.width;
+      const scaleY = 400 / rect.height;
       return {
-        x: clientX - rect.left,
-        y: clientY - rect.top
+        x: Math.floor((clientX - rect.left) * scaleX),
+        y: Math.floor((clientY - rect.top) * scaleY)
       };
     }
 
-    // 描画開始
-    function startDraw(e) {
-      isDrawing = true;
-      const pos = getPos(e);
-      ctx.beginPath();
-      ctx.moveTo(pos.x, pos.y);
+    // 描画・バケツ開始
+    function handleStart(e) {
       e.preventDefault();
-    }
-
-    // 描画中
-    function draw(e) {
-      if (!isDrawing) return;
       const pos = getPos(e);
-      
-      if (mode === "pen") {
-        ctx.strokeStyle = document.getElementById("pen-color").value;
-        ctx.globalCompositeOperation = "source-over";
-      } else {
-        ctx.strokeStyle = "#ffffff"; // 消しゴムは白色で上塗り
-        ctx.globalCompositeOperation = "source-over";
-      }
-      
-      ctx.lineWidth = document.getElementById("pen-size").value;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      
-      ctx.lineTo(pos.x, pos.y);
-      ctx.stroke();
-      e.preventDefault();
-    }
+      const ctx = contexts[activeLayer];
 
-    // 描画終了
-    function stopDraw() {
-      isDrawing = false;
-    }
-
-    // イベントリスナー登録（マウス＆タッチ）
-    canvas.addEventListener("mousedown", startDraw);
-    canvas.addEventListener("mousemove", draw);
-    canvas.addEventListener("mouseup", stopDraw);
-    canvas.addEventListener("mouseleave", stopDraw);
-
-    canvas.addEventListener("touchstart", startDraw);
-    canvas.addEventListener("touchmove", draw);
-    canvas.addEventListener("touchend", stopDraw);
-
-    // ペン・消しゴムの切り替え
-    function setMode(selectedMode) {
-      mode = selectedMode;
-      document.getElementById("pen-mode").classList.toggle("active", mode === "pen");
-      document.getElementById("eraser-mode").classList.toggle("active", mode === "eraser");
-    }
-
-    // 全部消す
-    function clearCanvas() {
-      if (confirm("描いた絵が全部消えちゃうけどいい？")) {
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
-    }
-
-    // 画廊に投稿する処理
-    async function submitDrawing() {
-      const name = document.getElementById("art-name").value.trim();
-      const title = document.getElementById("art-title").value.trim();
-      const comment = document.getElementById("art-comment").value.trim();
-      const btn = document.getElementById("submit-btn");
-      const status = document.getElementById("status-msg");
-
-      if (!name || !title) {
-        alert("お名前と作品のタイトルは必須だよ！");
+      if (mode === "bucket") {
+        const fillColorHex = document.getElementById("pen-color").value;
+        floodFill(ctx, pos.x, pos.y, fillColorHex);
         return;
       }
 
-      btn.disabled = true;
-      btn.textContent = "画廊へ送信中...（数秒かかります）";
-      status.style.color = "#333";
-      status.textContent = "";
-
-      // キャンバスをPNGのBase64データに変換
-      const pngDataUrl = canvas.toDataURL("image/png");
-      const base64Data = pngDataUrl.split(",")[1];
-
-      const payload = {
-        name: name,
-        title: title,
-        comment: comment,
-        fileName: "oekaki_" + Date.now() + ".png",
-        mimeType: "image/png",
-        image: base64Data
-      };
-
-      try {
-        await fetch(GAS_URL, {
-          method: "POST",
-          body: JSON.stringify(payload)
-        });
-
-        status.style.color = "#2e7d32";
-        status.textContent = "✨ 投稿完了！ちぃむ画廊に追加されたよ！";
-        
-        // フォームをクリアしてキャンバスもリセット
-        document.getElementById("art-name").value = "";
-        document.getElementById("art-title").value = "";
-        document.getElementById("art-comment").value = "";
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        setTimeout(() => {
-          window.location.href = "gallery.html"; // 投稿後、自動で画廊ページに飛ぶ！
-        }, 2000);
-
-      } catch (err) {
-        status.style.color = "#d9534f";
-        status.textContent = "❌ エラーが発生しました。";
-        console.error(err);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "画廊に飾る！";
-      }
+      isDrawing = true;
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
     }
-  </script>
-</body>
-</html>
+
+    // 描画中
+    function handleMove(e) {
+      if (!isDrawing || mode === "bucket") return;
+      e.preventDefault();
+      const pos = getPos(e);
+      const ctx = contexts[activeLayer];
+
+      if (mode === "pen") {
+        ctx.globalCompositeOperation = "source-over";
+        ctx.strokeStyle = document.getElementById("pen
