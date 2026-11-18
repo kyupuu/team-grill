@@ -25,6 +25,8 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       overflow: hidden;
       touch-action: none;
+      /* デフォルトのカーソルを消してカスタムプレビューを表示する */
+      cursor: none; 
     }
     .canvas-wrapper canvas {
       position: absolute;
@@ -32,10 +34,23 @@
       left: 0;
       width: 100%;
       height: 100%;
-      cursor: crosshair;
     }
-    #layer-base { z-index: 1; }
-    #layer-line { z-index: 2; }
+    /* レイヤーの重なり順（背景=1, 色塗り=2, 線画=3） */
+    #layer-bg { z-index: 1; }
+    #layer-base { z-index: 2; }
+    #layer-line { z-index: 3; }
+
+    /* 🔴 カーソルサイズのプレビュー用丸フレーム */
+    #cursor-preview {
+      position: absolute;
+      border: 2px solid rgba(255, 0, 0, 0.7);
+      background: rgba(255, 0, 0, 0.1);
+      border-radius: 50%;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      display: none;
+      z-index: 10;
+    }
 
     .panel-box {
       background: #f0f2f5;
@@ -119,17 +134,19 @@
 
   <main>
     <section class="card">
-      <h2>🖌️ お絵描き部屋（強化版）</h2>
-      <p>レイヤー2枚（線画・色塗り）＆バケツ塗りつぶし対応！描いた絵は保存したり画廊に飾れるよ。</p>
+      <h2>🖌️ お絵描き部屋（3レイヤー＆カーソル丸対応版）</h2>
+      <p>レイヤー3枚対応！カーソルに太さのプレビュー丸も付いてめちゃ描きやすくなったよ。</p>
     </section>
 
     <section class="card">
       <div class="canvas-container">
         <div class="panel-box">
+          <!-- 3層レイヤー切り替え -->
           <div class="tool-row">
             <label>レイヤー:</label>
-            <button type="button" class="tool-btn layer-btn active" id="btn-layer-line" onclick="selectLayer('line')">✏️ レイヤー2（上・線画）</button>
-            <button type="button" class="tool-btn layer-btn" id="btn-layer-base" onclick="selectLayer('base')">🎨 レイヤー1（下・色塗り）</button>
+            <button type="button" class="tool-btn layer-btn active" id="btn-layer-line" onclick="selectLayer('line')">✏️ 3:線画</button>
+            <button type="button" class="tool-btn layer-btn" id="btn-layer-base" onclick="selectLayer('base')">🎨 2:色塗り</button>
+            <button type="button" class="tool-btn layer-btn" id="btn-layer-bg" onclick="selectLayer('bg')">🌅 1:背景</button>
           </div>
 
           <div class="tool-row">
@@ -138,7 +155,7 @@
             <button type="button" class="tool-btn" id="mode-eraser" onclick="setMode('eraser')">消しゴム</button>
             <div>
               <label>太さ:</label>
-              <input type="range" id="pen-size" min="1" max="30" value="4" style="width: 80px; vertical-align: middle;">
+              <input type="range" id="pen-size" min="1" max="40" value="4" style="width: 80px; vertical-align: middle;">
             </div>
             <button type="button" class="tool-btn" onclick="clearCurrentLayer()" style="color: #d9534f;">今のレイヤー消去</button>
           </div>
@@ -164,7 +181,10 @@
           </div>
         </div>
 
+        <!-- 3枚重ねキャンバス ＆ カーソル丸プレビュー -->
         <div class="canvas-wrapper" id="canvas-wrapper">
+          <div id="cursor-preview"></div>
+          <canvas id="layer-bg" width="400" height="400"></canvas>
           <canvas id="layer-base" width="400" height="400"></canvas>
           <canvas id="layer-line" width="400" height="400"></canvas>
         </div>
@@ -179,11 +199,11 @@
         </div>
         <div class="form-group">
           <label>作品のタイトル *</label>
-          <input type="text" id="art-title" placeholder="例：レイヤー駆使した神絵" required>
+          <input type="text" id="art-title" placeholder="例：レイヤー3枚の超大作" required>
         </div>
         <div class="form-group">
           <label>一言コメント</label>
-          <input type="text" id="art-comment" placeholder="例：バケツ塗り便利すぎ">
+          <input type="text" id="art-comment" placeholder="例：カーソル丸見やすすぎ！">
         </div>
         
         <div class="btn-group">
@@ -204,11 +224,13 @@
 
     const canvases = {
       line: document.getElementById("layer-line"),
-      base: document.getElementById("layer-base")
+      base: document.getElementById("layer-base"),
+      bg: document.getElementById("layer-bg")
     };
     const contexts = {
       line: canvases.line.getContext("2d", { willReadFrequently: true }),
-      base: canvases.base.getContext("2d", { willReadFrequently: true })
+      base: canvases.base.getContext("2d", { willReadFrequently: true }),
+      bg: canvases.bg.getContext("2d", { willReadFrequently: true })
     };
 
     let activeLayer = "line";
@@ -220,11 +242,11 @@
       renderSavedPalette();
     };
 
-    // グローバル関数としてwindowに登録
     window.selectLayer = function(layerName) {
       activeLayer = layerName;
       document.getElementById("btn-layer-line").classList.toggle("active", layerName === "line");
       document.getElementById("btn-layer-base").classList.toggle("active", layerName === "base");
+      document.getElementById("btn-layer-bg").classList.toggle("active", layerName === "bg");
     };
 
     window.setMode = function(selectedMode) {
@@ -262,8 +284,43 @@
       });
     }
 
+    const wrapper = document.getElementById("canvas-wrapper");
+    const cursorPreview = document.getElementById("cursor-preview");
+    const sizeInput = document.getElementById("pen-size");
+
+    // カーソル丸プレビューの動き
+    wrapper.addEventListener("mouseenter", () => {
+      cursorPreview.style.display = "block";
+    });
+    wrapper.addEventListener("mouseleave", () => {
+      cursorPreview.style.display = "none";
+    });
+    wrapper.addEventListener("mousemove", (e) => {
+      const rect = wrapper.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      cursorPreview.style.left = x + "px";
+      cursorPreview.style.top = y + "px";
+
+      // ペンサイズに合わせてプレビューの大きさを変える（キャンバス上のスケールに合わせる）
+      const scale = rect.width / 400;
+      const currentSize = sizeInput.value * scale;
+      cursorPreview.style.width = currentSize + "px";
+      cursorPreview.style.height = currentSize + "px";
+
+      if (mode === "eraser") {
+        cursorPreview.style.borderColor = "rgba(0, 120, 255, 0.8)";
+        cursorPreview.style.background = "rgba(0, 120, 255, 0.15)";
+      } else if (mode === "bucket") {
+        cursorPreview.style.borderColor = "rgba(34, 139, 34, 0.8)";
+        cursorPreview.style.background = "rgba(34, 139, 34, 0.15)";
+      } else {
+        cursorPreview.style.borderColor = "rgba(255, 0, 0, 0.7)";
+        cursorPreview.style.background = "rgba(255, 0, 0, 0.1)";
+      }
+    });
+
     function getPos(e) {
-      const wrapper = document.getElementById("canvas-wrapper");
       const rect = wrapper.getBoundingClientRect();
       const clientX = e.clientX || (e.touches && e.touches[0].clientX);
       const clientY = e.clientY || (e.touches && e.touches[0].clientY);
@@ -305,7 +362,7 @@
         ctx.strokeStyle = "rgba(0,0,0,1)";
       }
 
-      ctx.lineWidth = document.getElementById("pen-size").value;
+      ctx.lineWidth = sizeInput.value;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
 
@@ -317,11 +374,9 @@
       isDrawing = false;
     }
 
-    const wrapper = document.getElementById("canvas-wrapper");
     wrapper.addEventListener("mousedown", handleStart);
     wrapper.addEventListener("mousemove", handleMove);
     wrapper.addEventListener("mouseup", handleEnd);
-    wrapper.addEventListener("mouseleave", handleEnd);
 
     wrapper.addEventListener("touchstart", handleStart, { passive: false });
     wrapper.addEventListener("touchmove", handleMove, { passive: false });
@@ -382,8 +437,8 @@
     }
 
     window.clearCurrentLayer = function() {
-      const layerNameText = activeLayer === "line" ? "レイヤー2（線画）" : "レイヤー1（色塗り）";
-      if (confirm(layerNameText + " を全部消してもいい？")) {
+      const layerNames = { line: "3:線画", base: "2:色塗り", bg: "1:背景" };
+      if (confirm(layerNames[activeLayer] + " を全部消してもいい？")) {
         contexts[activeLayer].clearRect(0, 0, 400, 400);
       }
     };
@@ -394,8 +449,10 @@
       tempCanvas.height = 400;
       const tempCtx = tempCanvas.getContext("2d");
 
+      // 白背景 -> 背景レイヤー -> 色塗りレイヤー -> 線画レイヤー の順に合成
       tempCtx.fillStyle = "#ffffff";
       tempCtx.fillRect(0, 0, 400, 400);
+      tempCtx.drawImage(canvases.bg, 0, 0);
       tempCtx.drawImage(canvases.base, 0, 0);
       tempCtx.drawImage(canvases.line, 0, 0);
 
