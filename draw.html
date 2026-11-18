@@ -145,7 +145,7 @@
   <main>
     <section class="card">
       <h2>🖌️ お絵描き部屋</h2>
-      <p>サクッと何か書きたいときに使ってね★そのまま画廊に飾れるよ</p>
+      <p>3レイヤー・虹色ペン・元に戻す/やり直し・消去パス対応！そのまま画廊に飾れるよ。</p>
     </section>
 
     <section class="card">
@@ -221,7 +221,11 @@
         </div>
         <div class="form-group">
           <label>一言コメント</label>
-          <input type="text" id="art-comment" placeholder="例：虹ペンでドパれる">
+          <input type="text" id="art-comment" placeholder="例：虹ペン最高">
+        </div>
+        <div class="form-group">
+          <label>消去パス（あとで絵を消すときの合言葉） *</label>
+          <input type="text" id="art-pass" placeholder="例：1234" required>
         </div>
         
         <div class="btn-group">
@@ -251,7 +255,6 @@
       bg: canvases.bg.getContext("2d", { willReadFrequently: true })
     };
 
-    // Undo / Redo 履歴管理（各レイヤーごとに ImageData を保存）
     const history = {
       line: { undoStack: [], redoStack: [] },
       base: { undoStack: [], redoStack: [] },
@@ -260,7 +263,7 @@
     const MAX_HISTORY = 25;
 
     let activeLayer = "line";
-    let mode = "pen"; // "pen", "rainbow", "bucket", "eraser"
+    let mode = "pen";
     let isDrawing = false;
     let lastPos = null;
     let rainbowHue = 0;
@@ -268,24 +271,20 @@
 
     window.onload = function() {
       renderSavedPalette();
-      // 初期状態（真っ白・透明）を履歴に保存
       ["line", "base", "bg"].forEach(layer => {
         history[layer].undoStack.push(contexts[layer].getImageData(0, 0, 400, 400));
       });
       updateHistoryButtons();
     };
 
-    // 履歴の記録
     function saveHistory(layerName) {
       const stack = history[layerName].undoStack;
       stack.push(contexts[layerName].getImageData(0, 0, 400, 400));
       if (stack.length > MAX_HISTORY) stack.shift();
-      // 新しく描いたらやり直し（Redo）履歴はクリア
       history[layerName].redoStack = [];
       updateHistoryButtons();
     }
 
-    // 元に戻す（Undo）
     window.undo = function() {
       const h = history[activeLayer];
       if (h.undoStack.length <= 1) return;
@@ -296,7 +295,6 @@
       updateHistoryButtons();
     };
 
-    // やり直し（Redo）
     window.redo = function() {
       const h = history[activeLayer];
       if (h.redoStack.length === 0) return;
@@ -306,14 +304,12 @@
       updateHistoryButtons();
     };
 
-    // ボタンの有効・無効を更新
     function updateHistoryButtons() {
       const h = history[activeLayer];
       document.getElementById("btn-undo").disabled = (h.undoStack.length <= 1);
       document.getElementById("btn-redo").disabled = (h.redoStack.length === 0);
     }
 
-    // ショートカットキー（Ctrl+Z / Ctrl+Y）対応
     document.addEventListener("keydown", (e) => {
       if (e.target.tagName === "INPUT") return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
@@ -433,8 +429,6 @@
 
       isDrawing = true;
       lastPos = pos;
-
-      // クリックしただけの点も描けるようにする
       drawSegment(ctx, pos, pos);
     }
 
@@ -462,7 +456,7 @@
       } else if (mode === "rainbow") {
         ctx.globalCompositeOperation = "source-over";
         ctx.strokeStyle = `hsl(${rainbowHue}, 100%, 50%)`;
-        rainbowHue = (rainbowHue + 6) % 360; // 描くたびに色相を回転！
+        rainbowHue = (rainbowHue + 6) % 360;
       } else if (mode === "eraser") {
         ctx.globalCompositeOperation = "destination-out";
         ctx.strokeStyle = "rgba(0,0,0,1)";
@@ -576,11 +570,12 @@
       const name = document.getElementById("art-name").value.trim();
       const title = document.getElementById("art-title").value.trim();
       const comment = document.getElementById("art-comment").value.trim();
+      const password = document.getElementById("art-pass").value.trim();
       const btn = document.getElementById("submit-btn");
       const status = document.getElementById("status-msg");
 
-      if (!name || !title) {
-        alert("お名前と作品のタイトルは必須だよ！");
+      if (!name || !title || !password) {
+        alert("お名前、タイトル、消去パスはすべて入力してね！");
         return;
       }
 
@@ -596,6 +591,7 @@
         name: name,
         title: title,
         comment: comment,
+        password: password,
         fileName: "oekaki_" + Date.now() + ".png",
         mimeType: "image/png",
         image: base64Data
