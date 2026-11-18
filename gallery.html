@@ -5,7 +5,6 @@
   <title>ちぃむ画廊 | ちぃむぐりる</title>
   <link rel="stylesheet" href="style.css">
   <style>
-    /* 画廊用の追加デザイン（白ベース） */
     .form-group { margin-bottom: 14px; }
     .form-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9em; color: #333; }
     .form-group input[type="text"],
@@ -22,7 +21,6 @@
     }
     .submit-btn:disabled { background-color: #999; cursor: not-allowed; }
     
-    /* ギャラリーのグリッドレイアウト */
     .gallery-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -43,7 +41,6 @@
     .art-comment { font-size: 0.9em; color: #444; background: #f0f2f5; padding: 6px 8px; border-radius: 4px; margin: 4px 0; word-break: break-all; }
     .art-meta { font-size: 0.8em; color: #666; margin: 0; }
 
-    /* 🖼️ 画像クリック時のモーダル（ポップアップ）デザイン */
     #image-modal {
       display: none; position: fixed; z-index: 9999; left: 0; top: 0;
       width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);
@@ -70,10 +67,9 @@
   <main>
     <section class="card">
       <h2>🎨 ちぃむ画廊</h2>
-      <p>メンバーが描いたイラストやスクショの展示室！下のフォームからログインなしで直接投稿できるよ。</p>
+      <p>メンバーが描いたイラストやスクショの展示室！ここからも直接投稿できるよ。</p>
     </section>
 
-    <!-- 📤 ログイン不要・画像アップロードフォーム -->
     <section class="card">
       <h2>🖼️ 作品を投稿する</h2>
       <div id="upload-form">
@@ -90,6 +86,10 @@
           <textarea id="art-comment" placeholder="例：神々しいひよこ"></textarea>
         </div>
         <div class="form-group">
+          <label>消去パス（あとで絵を消すときの合言葉） *</label>
+          <input type="text" id="art-pass" placeholder="例：1234" required>
+        </div>
+        <div class="form-group">
           <label>画像ファイル（JPG / PNGなど） *</label>
           <input type="file" id="art-file" accept="image/*" required>
         </div>
@@ -98,7 +98,6 @@
       </div>
     </section>
 
-    <!-- 🖼️ 展示一覧エリア -->
     <section class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eeeeee; padding-bottom: 8px;">
         <h2 style="border: none; margin: 0; padding: 0;">展示作品一覧</h2>
@@ -111,7 +110,6 @@
     </section>
   </main>
 
-  <!-- 🔍 画像拡大用ポップアップ要素 -->
   <div id="image-modal" onclick="closeModal()">
     <img id="modal-img" src="" alt="拡大画像">
   </div>
@@ -146,17 +144,17 @@
       });
     }
 
-    // 投稿処理
     async function submitArt() {
       const name = document.getElementById("art-name").value.trim();
       const title = document.getElementById("art-title").value.trim();
       const comment = document.getElementById("art-comment").value.trim();
+      const password = document.getElementById("art-pass").value.trim();
       const fileInput = document.getElementById("art-file");
       const btn = document.getElementById("submit-btn");
       const status = document.getElementById("status-msg");
 
-      if (!name || !title || fileInput.files.length === 0) {
-        alert("お名前、タイトル、画像ファイルは必須だよ！");
+      if (!name || !title || !password || fileInput.files.length === 0) {
+        alert("お名前、タイトル、消去パス、画像ファイルはすべて入力してね！");
         return;
       }
 
@@ -170,7 +168,7 @@
       reader.onload = async function() {
         const base64Data = reader.result.split(",")[1];
         const payload = {
-          name: name, title: title, comment: comment,
+          name: name, title: title, comment: comment, password: password,
           fileName: file.name, mimeType: file.type, image: base64Data
         };
 
@@ -183,99 +181,5 @@
           document.getElementById("art-name").value = "";
           document.getElementById("art-title").value = "";
           document.getElementById("art-comment").value = "";
-          fileInput.value = "";
-          
-          // スプレッドシートの反映待ちを考慮して少し長めに待ってから再読み込み
-          setTimeout(loadGallery, 4000);
-        } catch (err) {
-          status.style.color = "#d9534f";
-          status.textContent = "❌ エラーが発生しました。";
-          console.error(err);
-        } finally {
-          btn.disabled = false;
-          btn.textContent = "画廊に飾る！";
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-
-    // 画廊の読み込み（スプレッドシートのキャッシュ対策：二重読み込み防止）
-    async function loadGallery() {
-      const listArea = document.getElementById("gallery-list");
-      try {
-        // キャッシュを回避するために強力なランダムパラメータを付与
-        const response = await fetch(CSV_URL + "&t=" + new Date().getTime() + Math.random());
-        const csvText = await response.text();
-        const rows = parseCSV(csvText);
-        const items = rows.slice(1).reverse();
-
-        if (items.length === 0 || (items.length === 1 && items[0][0] === "")) {
-          listArea.innerHTML = '<p style="color: #888; text-align: center; grid-column: 1 / -1;">まだ作品がありません。最初の1枚を飾ろう！</p>';
-          return;
-        }
-
-        listArea.innerHTML = "";
-        items.forEach(cols => {
-          if (cols.length < 5) return;
-          const time = cols[0] || "";
-          const name = cols[1] || "名無し";
-          const title = cols[2] || "無題";
-          const comment = cols[3] || "";
-          const imageUrl = cols.slice(4).join(","); // URLにカンマが含まれる場合の対策
-
-          if (!imageUrl) return;
-
-          const card = document.createElement("div");
-          card.className = "art-card";
-          
-          // 画像要素（クリックしたらポップアップが開く）
-          const img = document.createElement("img");
-          img.src = imageUrl;
-          img.alt = title;
-          img.onclick = function() {
-            openModal(imageUrl);
-          };
-          card.appendChild(img);
-
-          // 情報エリア
-          const info = document.createElement("div");
-          info.className = "art-info";
-          info.innerHTML = `
-            <h3 class="art-title">${escapeHTML(title)}</h3>
-            ${comment ? `<p class="art-comment">${escapeHTML(comment)}</p>` : ''}
-            <p class="art-meta">作者: ${escapeHTML(name)} / ${time}</p>
-          `;
-          card.appendChild(info);
-
-          listArea.appendChild(card);
-        });
-      } catch (err) {
-        listArea.innerHTML = '<p style="color: #d9534f; text-align: center; grid-column: 1 / -1;">作品の読み込みに失敗しました。</p>';
-        console.error(err);
-      }
-    }
-
-    // ポップアップを開く関数
-    function openModal(url) {
-      const modal = document.getElementById("image-modal");
-      const modalImg = document.getElementById("modal-img");
-      modalImg.src = url;
-      modal.style.display = "flex";
-    }
-
-    // ポップアップを閉じる関数
-    function closeModal() {
-      const modal = document.getElementById("image-modal");
-      modal.style.display = "none";
-    }
-
-    function escapeHTML(str) {
-      return str.replace(/[&<>'"]/g, tag => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-      }[tag] || tag));
-    }
-
-    window.onload = loadGallery;
-  </script>
-</body>
-</html>
+          document.getElementById("art-pass").value = "";
+          fileInput
