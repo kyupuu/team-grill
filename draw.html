@@ -25,8 +25,7 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       overflow: hidden;
       touch-action: none;
-      /* デフォルトのカーソルを消してカスタムプレビューを表示する */
-      cursor: none; 
+      cursor: none;
     }
     .canvas-wrapper canvas {
       position: absolute;
@@ -35,12 +34,11 @@
       width: 100%;
       height: 100%;
     }
-    /* レイヤーの重なり順（背景=1, 色塗り=2, 線画=3） */
     #layer-bg { z-index: 1; }
     #layer-base { z-index: 2; }
     #layer-line { z-index: 3; }
 
-    /* 🔴 カーソルサイズのプレビュー用丸フレーム */
+    /* カーソルサイズのプレビュー用丸フレーム */
     #cursor-preview {
       position: absolute;
       border: 2px solid rgba(255, 0, 0, 0.7);
@@ -75,8 +73,20 @@
       padding: 6px 12px; font-weight: bold; cursor: pointer; font-size: 0.85em;
       transition: all 0.15s;
     }
+    .tool-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
     .tool-btn.active { background: #222; color: #fff; border-color: #222; }
     .layer-btn.active { background: #1976d2; color: #fff; border-color: #1976d2; }
+    
+    /* 🌈 虹色ペンボタンの特別スタイル */
+    .rainbow-btn.active {
+      background: linear-gradient(90deg, #ff3b30, #ff9500, #ffcc00, #34c759, #007aff, #af52de);
+      color: #fff;
+      border-color: transparent;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    }
 
     .palette-area {
       display: flex;
@@ -134,14 +144,14 @@
 
   <main>
     <section class="card">
-      <h2>🖌️ お絵描き部屋（3レイヤー＆カーソル丸対応版）</h2>
-      <p>レイヤー3枚対応！カーソルに太さのプレビュー丸も付いてめちゃ描きやすくなったよ。</p>
+      <h2>🖌️ お絵描き部屋</h2>
+      <p>サクッと何か書きたいときに使ってね★そのまま画廊に飾れるよ</p>
     </section>
 
     <section class="card">
       <div class="canvas-container">
         <div class="panel-box">
-          <!-- 3層レイヤー切り替え -->
+          <!-- レイヤー＆履歴操作 -->
           <div class="tool-row">
             <label>レイヤー:</label>
             <button type="button" class="tool-btn layer-btn active" id="btn-layer-line" onclick="selectLayer('line')">✏️ 3:線画</button>
@@ -150,16 +160,24 @@
           </div>
 
           <div class="tool-row">
+            <button type="button" class="tool-btn" id="btn-undo" onclick="undo()" disabled>↩ 元に戻す</button>
+            <button type="button" class="tool-btn" id="btn-redo" onclick="redo()" disabled>↪ やり直し</button>
+            <button type="button" class="tool-btn" onclick="clearCurrentLayer()" style="color: #d9534f;">今のレイヤー消去</button>
+          </div>
+
+          <!-- ペンツール各種 -->
+          <div class="tool-row">
             <button type="button" class="tool-btn active" id="mode-pen" onclick="setMode('pen')">ペン</button>
+            <button type="button" class="tool-btn rainbow-btn" id="mode-rainbow" onclick="setMode('rainbow')">🌈 虹色ペン</button>
             <button type="button" class="tool-btn" id="mode-bucket" onclick="setMode('bucket')">🪣 塗りつぶし</button>
             <button type="button" class="tool-btn" id="mode-eraser" onclick="setMode('eraser')">消しゴム</button>
             <div>
               <label>太さ:</label>
               <input type="range" id="pen-size" min="1" max="40" value="4" style="width: 80px; vertical-align: middle;">
             </div>
-            <button type="button" class="tool-btn" onclick="clearCurrentLayer()" style="color: #d9534f;">今のレイヤー消去</button>
           </div>
 
+          <!-- パレット -->
           <div class="tool-row">
             <input type="color" id="pen-color" value="#000000" style="width: 36px; height: 30px; border: none; cursor: pointer;">
             <div class="palette-area" id="default-palette">
@@ -199,11 +217,11 @@
         </div>
         <div class="form-group">
           <label>作品のタイトル *</label>
-          <input type="text" id="art-title" placeholder="例：レイヤー3枚の超大作" required>
+          <input type="text" id="art-title" placeholder="例：虹ひよこ" required>
         </div>
         <div class="form-group">
           <label>一言コメント</label>
-          <input type="text" id="art-comment" placeholder="例：カーソル丸見やすすぎ！">
+          <input type="text" id="art-comment" placeholder="例：虹ペンでドパれる">
         </div>
         
         <div class="btn-group">
@@ -233,32 +251,100 @@
       bg: canvases.bg.getContext("2d", { willReadFrequently: true })
     };
 
+    // Undo / Redo 履歴管理（各レイヤーごとに ImageData を保存）
+    const history = {
+      line: { undoStack: [], redoStack: [] },
+      base: { undoStack: [], redoStack: [] },
+      bg:   { undoStack: [], redoStack: [] }
+    };
+    const MAX_HISTORY = 25;
+
     let activeLayer = "line";
-    let mode = "pen";
+    let mode = "pen"; // "pen", "rainbow", "bucket", "eraser"
     let isDrawing = false;
+    let lastPos = null;
+    let rainbowHue = 0;
     let savedColors = JSON.parse(localStorage.getItem("chiimu_saved_colors") || "[]");
 
     window.onload = function() {
       renderSavedPalette();
+      // 初期状態（真っ白・透明）を履歴に保存
+      ["line", "base", "bg"].forEach(layer => {
+        history[layer].undoStack.push(contexts[layer].getImageData(0, 0, 400, 400));
+      });
+      updateHistoryButtons();
     };
+
+    // 履歴の記録
+    function saveHistory(layerName) {
+      const stack = history[layerName].undoStack;
+      stack.push(contexts[layerName].getImageData(0, 0, 400, 400));
+      if (stack.length > MAX_HISTORY) stack.shift();
+      // 新しく描いたらやり直し（Redo）履歴はクリア
+      history[layerName].redoStack = [];
+      updateHistoryButtons();
+    }
+
+    // 元に戻す（Undo）
+    window.undo = function() {
+      const h = history[activeLayer];
+      if (h.undoStack.length <= 1) return;
+      const current = h.undoStack.pop();
+      h.redoStack.push(current);
+      const prev = h.undoStack[h.undoStack.length - 1];
+      contexts[activeLayer].putImageData(prev, 0, 0);
+      updateHistoryButtons();
+    };
+
+    // やり直し（Redo）
+    window.redo = function() {
+      const h = history[activeLayer];
+      if (h.redoStack.length === 0) return;
+      const next = h.redoStack.pop();
+      h.undoStack.push(next);
+      contexts[activeLayer].putImageData(next, 0, 0);
+      updateHistoryButtons();
+    };
+
+    // ボタンの有効・無効を更新
+    function updateHistoryButtons() {
+      const h = history[activeLayer];
+      document.getElementById("btn-undo").disabled = (h.undoStack.length <= 1);
+      document.getElementById("btn-redo").disabled = (h.redoStack.length === 0);
+    }
+
+    // ショートカットキー（Ctrl+Z / Ctrl+Y）対応
+    document.addEventListener("keydown", (e) => {
+      if (e.target.tagName === "INPUT") return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) window.redo();
+        else window.undo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        window.redo();
+      }
+    });
 
     window.selectLayer = function(layerName) {
       activeLayer = layerName;
       document.getElementById("btn-layer-line").classList.toggle("active", layerName === "line");
       document.getElementById("btn-layer-base").classList.toggle("active", layerName === "base");
       document.getElementById("btn-layer-bg").classList.toggle("active", layerName === "bg");
+      updateHistoryButtons();
     };
 
     window.setMode = function(selectedMode) {
       mode = selectedMode;
       document.getElementById("mode-pen").classList.toggle("active", mode === "pen");
+      document.getElementById("mode-rainbow").classList.toggle("active", mode === "rainbow");
       document.getElementById("mode-bucket").classList.toggle("active", mode === "bucket");
       document.getElementById("mode-eraser").classList.toggle("active", mode === "eraser");
     };
 
     window.pickColor = function(hex) {
       document.getElementById("pen-color").value = hex;
-      if (mode === "eraser") window.setMode("pen");
+      if (mode === "eraser" || mode === "rainbow") window.setMode("pen");
     };
 
     window.saveCurrentColor = function() {
@@ -288,7 +374,6 @@
     const cursorPreview = document.getElementById("cursor-preview");
     const sizeInput = document.getElementById("pen-size");
 
-    // カーソル丸プレビューの動き
     wrapper.addEventListener("mouseenter", () => {
       cursorPreview.style.display = "block";
     });
@@ -302,7 +387,6 @@
       cursorPreview.style.left = x + "px";
       cursorPreview.style.top = y + "px";
 
-      // ペンサイズに合わせてプレビューの大きさを変える（キャンバス上のスケールに合わせる）
       const scale = rect.width / 400;
       const currentSize = sizeInput.value * scale;
       cursorPreview.style.width = currentSize + "px";
@@ -314,6 +398,9 @@
       } else if (mode === "bucket") {
         cursorPreview.style.borderColor = "rgba(34, 139, 34, 0.8)";
         cursorPreview.style.background = "rgba(34, 139, 34, 0.15)";
+      } else if (mode === "rainbow") {
+        cursorPreview.style.borderColor = `hsl(${rainbowHue}, 100%, 50%)`;
+        cursorPreview.style.background = `hsla(${rainbowHue}, 100%, 50%, 0.2)`;
       } else {
         cursorPreview.style.borderColor = "rgba(255, 0, 0, 0.7)";
         cursorPreview.style.background = "rgba(255, 0, 0, 0.1)";
@@ -340,12 +427,15 @@
       if (mode === "bucket") {
         const fillColorHex = document.getElementById("pen-color").value;
         floodFill(ctx, pos.x, pos.y, fillColorHex);
+        saveHistory(activeLayer);
         return;
       }
 
       isDrawing = true;
-      ctx.beginPath();
-      ctx.moveTo(pos.x, pos.y);
+      lastPos = pos;
+
+      // クリックしただけの点も描けるようにする
+      drawSegment(ctx, pos, pos);
     }
 
     function handleMove(e) {
@@ -354,29 +444,44 @@
       const pos = getPos(e);
       const ctx = contexts[activeLayer];
 
+      drawSegment(ctx, lastPos, pos);
+      lastPos = pos;
+    }
+
+    function drawSegment(ctx, from, to) {
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.lineWidth = sizeInput.value;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
       if (mode === "pen") {
         ctx.globalCompositeOperation = "source-over";
         ctx.strokeStyle = document.getElementById("pen-color").value;
+      } else if (mode === "rainbow") {
+        ctx.globalCompositeOperation = "source-over";
+        ctx.strokeStyle = `hsl(${rainbowHue}, 100%, 50%)`;
+        rainbowHue = (rainbowHue + 6) % 360; // 描くたびに色相を回転！
       } else if (mode === "eraser") {
         ctx.globalCompositeOperation = "destination-out";
         ctx.strokeStyle = "rgba(0,0,0,1)";
       }
 
-      ctx.lineWidth = sizeInput.value;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-
-      ctx.lineTo(pos.x, pos.y);
       ctx.stroke();
     }
 
     function handleEnd() {
-      isDrawing = false;
+      if (isDrawing) {
+        isDrawing = false;
+        saveHistory(activeLayer);
+      }
     }
 
     wrapper.addEventListener("mousedown", handleStart);
     wrapper.addEventListener("mousemove", handleMove);
     wrapper.addEventListener("mouseup", handleEnd);
+    wrapper.addEventListener("mouseleave", handleEnd);
 
     wrapper.addEventListener("touchstart", handleStart, { passive: false });
     wrapper.addEventListener("touchmove", handleMove, { passive: false });
@@ -440,6 +545,7 @@
       const layerNames = { line: "3:線画", base: "2:色塗り", bg: "1:背景" };
       if (confirm(layerNames[activeLayer] + " を全部消してもいい？")) {
         contexts[activeLayer].clearRect(0, 0, 400, 400);
+        saveHistory(activeLayer);
       }
     };
 
@@ -449,7 +555,6 @@
       tempCanvas.height = 400;
       const tempCtx = tempCanvas.getContext("2d");
 
-      // 白背景 -> 背景レイヤー -> 色塗りレイヤー -> 線画レイヤー の順に合成
       tempCtx.fillStyle = "#ffffff";
       tempCtx.fillRect(0, 0, 400, 400);
       tempCtx.drawImage(canvases.bg, 0, 0);
