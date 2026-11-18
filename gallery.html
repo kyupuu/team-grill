@@ -182,4 +182,130 @@
           document.getElementById("art-title").value = "";
           document.getElementById("art-comment").value = "";
           document.getElementById("art-pass").value = "";
-          fileInput
+          fileInput.value = "";
+          
+          setTimeout(loadGallery, 4000);
+        } catch (err) {
+          status.style.color = "#d9534f";
+          status.textContent = "❌ エラーが発生しました。";
+          console.error(err);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "画廊に飾る！";
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function loadGallery() {
+      const listArea = document.getElementById("gallery-list");
+      try {
+        const response = await fetch(CSV_URL + "&t=" + new Date().getTime() + Math.random());
+        const csvText = await response.text();
+        const rows = parseCSV(csvText);
+        
+        const items = [];
+        for (let i = 1; i < rows.length; i++) {
+          items.push({ rowNumber: i + 1, cols: rows[i] });
+        }
+        items.reverse();
+
+        if (items.length === 0 || (items.length === 1 && items[0].cols[0] === "")) {
+          listArea.innerHTML = '<p style="color: #888; text-align: center; grid-column: 1 / -1;">まだ作品がありません。最初の1枚を飾ろう！</p>';
+          return;
+        }
+
+        listArea.innerHTML = "";
+        items.forEach(item => {
+          const cols = item.cols;
+          const rowNumber = item.rowNumber;
+          if (cols.length < 5) return;
+
+          const time = cols[0] || "";
+          const name = cols[1] || "名無し";
+          const title = cols[2] || "無題";
+          const comment = cols[3] || "";
+          const imageUrl = cols[4] || ""; // 👈 きっちりE列（インデックス4）を指定！
+
+          if (!imageUrl) return;
+
+          const card = document.createElement("div");
+          card.className = "art-card";
+          
+          const img = document.createElement("img");
+          img.src = imageUrl;
+          img.alt = title;
+          img.onclick = function() { openModal(imageUrl); };
+          card.appendChild(img);
+
+          const info = document.createElement("div");
+          info.className = "art-info";
+          info.innerHTML = `
+            <h3 class="art-title">${escapeHTML(title)}</h3>
+            ${comment ? `<p class="art-comment">${escapeHTML(comment)}</p>` : ''}
+            <p class="art-meta">作者: ${escapeHTML(name)} / ${time}</p>
+            <button onclick="deleteArt(${rowNumber})" style="background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; border-radius: 4px; padding: 4px 8px; font-size: 0.8em; font-weight: bold; cursor: pointer; margin-top: 6px;">🗑️ この絵を消す</button>
+          `;
+          card.appendChild(info);
+
+          listArea.appendChild(card);
+        });
+      } catch (err) {
+        listArea.innerHTML = '<p style="color: #d9534f; text-align: center; grid-column: 1 / -1;">作品の読み込みに失敗しました。</p>';
+        console.error(err);
+      }
+    }
+
+    async function deleteArt(rowNumber) {
+      const password = prompt("投稿したときに設定した「消去パス」を入力してね！");
+      if (!password) return;
+
+      if (!confirm("本当にこの作品を消去してもいい？")) return;
+
+      const payload = {
+        action: "delete",
+        rowIndex: rowNumber,
+        password: password
+      };
+
+      try {
+        const res = await fetch(GAS_URL, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+
+        if (result.status === "success") {
+          alert("✨ 作品を消去しました！");
+          setTimeout(loadGallery, 3000);
+        } else {
+          alert("❌ 削除失敗: " + result.message);
+        }
+      } catch (err) {
+        alert("❌ 通信エラーが発生しました。");
+        console.error(err);
+      }
+    }
+
+    function openModal(url) {
+      const modal = document.getElementById("image-modal");
+      const modalImg = document.getElementById("modal-img");
+      modalImg.src = url;
+      modal.style.display = "flex";
+    }
+
+    function closeModal() {
+      const modal = document.getElementById("image-modal");
+      modal.style.display = "none";
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      }[tag] || tag));
+    }
+
+    window.onload = loadGallery;
+  </script>
+</body>
+</html>
