@@ -65,22 +65,31 @@
       cursor: default;
     }
 
-    /* 押したときにじわーっと出るきゅぷぅ画像用アニメーション */
-    .kyupuu-popup {
+    /* ▼ カオス大量発生きゅぷぅ画像用アニメーション */
+    .kyupuu-chaos {
       position: fixed;
-      top: 50%;
-      left: 50%;
-      width: 180px;
       height: auto;
       z-index: 10000;
       pointer-events: none;
-      animation: jiwarin 1.4s ease-out forwards;
+      animation: chaosJiwarin 1.8s ease-out forwards;
     }
-    @keyframes jiwarin {
-      0%   { opacity: 0; transform: translate(-50%, -45%) scale(0.7); }
-      25%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
-      70%  { opacity: 1; transform: translate(-50%, -52%) scale(1.0); }
-      100% { opacity: 0; transform: translate(-50%, -60%) scale(0.95); }
+    @keyframes chaosJiwarin {
+      0%   { opacity: 0; transform: translate(-50%, -40%) scale(0.3) rotate(var(--rot-start)); }
+      25%  { opacity: 1; transform: translate(-50%, -50%) scale(1.1) rotate(var(--rot-mid)); }
+      75%  { opacity: 0.95; transform: translate(-50%, -58%) scale(1.0) rotate(var(--rot-end)); }
+      100% { opacity: 0; transform: translate(-50%, -75%) scale(0.8) rotate(var(--rot-end)); }
+    }
+
+    /* ▼ ついでに飛び出すカオス文字 */
+    .kyupuu-text {
+      position: fixed;
+      font-weight: 900;
+      color: #2980b9;
+      text-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff;
+      z-index: 10001;
+      pointer-events: none;
+      white-space: nowrap;
+      animation: chaosJiwarin 1.6s ease-out forwards;
     }
 
     #image-modal {
@@ -160,248 +169,4 @@
     <p>&copy; 2026 ちぃむぐりる</p>
   </footer>
 
-  <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycby2r_NRzBfwQFhOPPA3pFu7W8rxo67pAVZ86lqbQyTPIiEgHiTDfOn5GbXVLYnXl_r6/exec";
-    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR5ThxZYdlVKzZlB5lHkFBiHIxw5q54cobkDibPLceglpXOmpNsZ4D9s5Wit04a2DwoNBoT9K-liQEm/pub?output=csv";
-
-    // あとでここに手描ききゅぷぅの画像パスを入れる（例: "kyupuu.png"）
-    const KYUPUU_IMG_SRC = "OXRJ1806.PNG";
-
-    function parseCSV(text) {
-      const lines = text.split("\n");
-      return lines.map(line => {
-        const row = [];
-        let inQuotes = false;
-        let entry = "";
-        for (let i = 0; i < line.length; i++) {
-          const char = line[i];
-          if (char === '"') {
-            inQuotes = !inQuotes;
-          } else if (char === ',' && !inQuotes) {
-            row.push(entry.trim());
-            entry = "";
-          } else {
-            entry += char;
-          }
-        }
-        row.push(entry.trim());
-        return row;
-      });
-    }
-
-    async function submitArt() {
-      const name = document.getElementById("art-name").value.trim();
-      const title = document.getElementById("art-title").value.trim();
-      const comment = document.getElementById("art-comment").value.trim();
-      const password = document.getElementById("art-pass").value.trim();
-      const fileInput = document.getElementById("art-file");
-      const btn = document.getElementById("submit-btn");
-      const status = document.getElementById("status-msg");
-
-      if (!name || !title || !password || fileInput.files.length === 0) {
-        alert("お名前、タイトル、消去パス、画像ファイルはすべて入力してね！");
-        return;
-      }
-
-      const file = fileInput.files[0];
-      btn.disabled = true;
-      btn.textContent = "アップロード中...（数秒かかります）";
-      status.style.color = "#333";
-      status.textContent = "";
-
-      const reader = new FileReader();
-      reader.onload = async function() {
-        const base64Data = reader.result.split(",")[1];
-        const payload = {
-          name: name, title: title, comment: comment, password: password,
-          fileName: file.name, mimeType: file.type, image: base64Data
-        };
-
-        try {
-          await fetch(GAS_URL, { method: "POST", body: JSON.stringify(payload) });
-
-          status.style.color = "#2e7d32";
-          status.textContent = "✨ 投稿完了！作品が追加されました。";
-          
-          document.getElementById("art-name").value = "";
-          document.getElementById("art-title").value = "";
-          document.getElementById("art-comment").value = "";
-          document.getElementById("art-pass").value = "";
-          fileInput.value = "";
-          
-          setTimeout(loadGallery, 4000);
-        } catch (err) {
-          status.style.color = "#d9534f";
-          status.textContent = "❌ エラーが発生しました。";
-          console.error(err);
-        } finally {
-          btn.disabled = false;
-          btn.textContent = "画廊に飾る！";
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-
-    function pushKyupuu(btn, key) {
-      let count = parseInt(localStorage.getItem(key)) || 0;
-      if (count > 0) return;
-
-      count = 1;
-      localStorage.setItem(key, count);
-      btn.textContent = `✨ ${count} きゅぷぅ`;
-      btn.classList.add("is-pushed");
-
-      if (KYUPUU_IMG_SRC) {
-        const popup = document.createElement("img");
-        popup.src = KYUPUU_IMG_SRC;
-        popup.className = "kyupuu-popup";
-        document.body.appendChild(popup);
-        setTimeout(() => popup.remove(), 1450);
-      }
-    }
-
-    async function loadGallery() {
-      const listArea = document.getElementById("gallery-list");
-      try {
-        const response = await fetch(CSV_URL + "&t=" + new Date().getTime() + Math.random());
-        const csvText = await response.text();
-        const rows = parseCSV(csvText);
-        
-        const items = [];
-        for (let i = 1; i < rows.length; i++) {
-          items.push({ rowNumber: i + 1, cols: rows[i] });
-        }
-        items.reverse();
-
-        if (items.length === 0 || (items.length === 1 && items[0].cols[0] === "")) {
-          listArea.innerHTML = '<p style="color: #888; text-align: center; grid-column: 1 / -1;">まだ作品がありません。最初の1枚を飾ろう！</p>';
-          return;
-        }
-
-        listArea.innerHTML = "";
-        items.forEach(item => {
-          const cols = item.cols;
-          const rowNumber = item.rowNumber;
-          if (!cols || cols.length < 5) return;
-
-          const time = cols[0] || "";
-          const name = cols[1] || "名無し";
-          const title = cols[2] || "無題";
-          const comment = cols[3] || "";
-          const imageUrl = (cols[4] || "").trim();
-
-          if (!imageUrl) return;
-
-          const storageKey = "kyupuu_row_" + rowNumber + "_" + encodeURIComponent(title);
-          const savedCount = parseInt(localStorage.getItem(storageKey)) || 0;
-
-          const card = document.createElement("div");
-          card.className = "art-card";
-          
-          const img = document.createElement("img");
-          img.src = imageUrl;
-          img.alt = title;
-          img.onclick = function() { openModal(imageUrl); };
-          card.appendChild(img);
-
-          const info = document.createElement("div");
-          info.className = "art-info";
-
-          const titleEl = document.createElement("h3");
-          titleEl.className = "art-title";
-          titleEl.textContent = title;
-          info.appendChild(titleEl);
-
-          if (comment) {
-            const commentEl = document.createElement("p");
-            commentEl.className = "art-comment";
-            commentEl.textContent = comment;
-            info.appendChild(commentEl);
-          }
-
-          const metaEl = document.createElement("p");
-          metaEl.className = "art-meta";
-          metaEl.textContent = `作者: ${name} / ${time}`;
-          info.appendChild(metaEl);
-
-          // きゅぷぅボタンをDOMで安全に作成
-          const kyupuuBtn = document.createElement("button");
-          kyupuuBtn.type = "button";
-          kyupuuBtn.className = "kyupuu-btn";
-          if (savedCount > 0) {
-            kyupuuBtn.textContent = `✨ ${savedCount} きゅぷぅ`;
-            kyupuuBtn.classList.add("is-pushed");
-          } else {
-            kyupuuBtn.textContent = "✨ きゅぷぅする！";
-          }
-          kyupuuBtn.addEventListener("click", function() {
-            pushKyupuu(kyupuuBtn, storageKey);
-          });
-          info.appendChild(kyupuuBtn);
-
-          // 削除ボタンもDOMで安全に作成
-          const delBtn = document.createElement("button");
-          delBtn.type = "button";
-          delBtn.textContent = "🗑️ この絵を消す";
-          delBtn.style.cssText = "background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; border-radius: 4px; padding: 4px 8px; font-size: 0.8em; font-weight: bold; cursor: pointer; margin-top: 6px;";
-          delBtn.addEventListener("click", function() {
-            deleteArt(rowNumber);
-          });
-          info.appendChild(delBtn);
-
-          card.appendChild(info);
-          listArea.appendChild(card);
-        });
-      } catch (err) {
-        listArea.innerHTML = '<p style="color: #d9534f; text-align: center; grid-column: 1 / -1;">作品の読み込みに失敗しました。</p>';
-        console.error(err);
-      }
-    }
-
-    async function deleteArt(rowNumber) {
-      const password = prompt("投稿したときに設定した「消去パス」を入力してね！");
-      if (!password) return;
-
-      if (!confirm("本当にこの作品を消去してもいい？")) return;
-
-      const payload = {
-        action: "delete",
-        rowIndex: rowNumber,
-        password: password
-      };
-
-      try {
-        const res = await fetch(GAS_URL, {
-          method: "POST",
-          body: JSON.stringify(payload)
-        });
-        const result = await res.json();
-
-        if (result.status === "success") {
-          alert("✨ 作品を消去しました！");
-          setTimeout(loadGallery, 3000);
-        } else {
-          alert("❌ 削除失敗: " + result.message);
-        }
-      } catch (err) {
-        alert("❌ 通信エラーが発生しました。");
-        console.error(err);
-      }
-    }
-
-    function openModal(url) {
-      const modal = document.getElementById("image-modal");
-      const modalImg = document.getElementById("modal-img");
-      modalImg.src = url;
-      modal.style.display = "flex";
-    }
-
-    function closeModal() {
-      const modal = document.getElementById("image-modal");
-      modal.style.display = "none";
-    }
-
-    window.onload = loadGallery;
-  </script>
-</body>
-</html>
+  <script
