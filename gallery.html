@@ -37,4 +37,371 @@
     }
     .art-card img:hover { opacity: 0.85; }
     .art-info { padding: 12px; display: flex; flex-direction: column; gap: 4px; }
-    .art-title { font-weight: bold; font-size: 1.05em; color: #
+    .art-title { font-weight: bold; font-size: 1.05em; color: #222; margin: 0; }
+    .art-comment { font-size: 0.9em; color: #444; background: #f0f2f5; padding: 6px 8px; border-radius: 4px; margin: 4px 0; word-break: break-all; }
+    .art-meta { font-size: 0.8em; color: #666; margin: 0; }
+
+    /* きゅぷぅする！ボタン用スタイル */
+    .kyupuu-btn {
+      background-color: #ffffff;
+      color: #2980b9;
+      border: 2px solid #7cc6fe;
+      border-radius: 20px;
+      padding: 6px 12px;
+      font-size: 0.85em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 8px;
+      width: 100%;
+    }
+    .kyupuu-btn:hover:not(.is-pushed) {
+      background-color: #e1f0ff;
+    }
+    .kyupuu-btn.is-pushed {
+      background-color: #7cc6fe;
+      color: #ffffff;
+      border-color: #7cc6fe;
+      cursor: default;
+    }
+
+    /* 押したときにじわーっと出るきゅぷぅ画像用アニメーション */
+    .kyupuu-popup {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      width: 180px;
+      height: auto;
+      z-index: 10000;
+      pointer-events: none;
+      animation: jiwarin 1.4s ease-out forwards;
+    }
+    @keyframes jiwarin {
+      0%   { opacity: 0; transform: translate(-50%, -45%) scale(0.7); }
+      25%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+      70%  { opacity: 1; transform: translate(-50%, -52%) scale(1.0); }
+      100% { opacity: 0; transform: translate(-50%, -60%) scale(0.95); }
+    }
+
+    #image-modal {
+      display: none; position: fixed; z-index: 9999; left: 0; top: 0;
+      width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);
+      justify-content: center; align-items: center; cursor: pointer;
+    }
+    #image-modal img {
+      max-width: 90%; max-height: 90%; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 class="site-title">🔥 ちぃむぐりる 🔥</h1>
+    <nav>
+      <ul>
+        <li><a href="index.html">ホーム</a></li>
+        <li><a href="blog.html">みんなの日記</a></li>
+        <li><a href="gallery.html" class="active">ちぃむ画廊</a></li>
+        <li><a href="draw.html">お絵描き部屋</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>🎨 ちぃむ画廊</h2>
+      <p>メンバーが描いたイラストやスクショの展示室！ここからも直接投稿できるよ。</p>
+    </section>
+
+    <section class="card">
+      <h2>🖼️ 作品を投稿する</h2>
+      <div id="upload-form">
+        <div class="form-group">
+          <label>お名前 *</label>
+          <input type="text" id="art-name" placeholder="例：きゅぷぅ" required>
+        </div>
+        <div class="form-group">
+          <label>作品のタイトル *</label>
+          <input type="text" id="art-title" placeholder="例：神ひよこ" required>
+        </div>
+        <div class="form-group">
+          <label>コメント（一言感想など）</label>
+          <textarea id="art-comment" placeholder="例：神々しいひよこ"></textarea>
+        </div>
+        <div class="form-group">
+          <label>消去パス（あとで絵を消すときの合言葉） *</label>
+          <input type="text" id="art-pass" placeholder="例：1234" required>
+        </div>
+        <div class="form-group">
+          <label>画像ファイル（JPG / PNGなど） *</label>
+          <input type="file" id="art-file" accept="image/*" required>
+        </div>
+        <button type="button" id="submit-btn" class="submit-btn" onclick="submitArt()">画廊に飾る！</button>
+        <p id="status-msg" style="margin-top: 10px; font-weight: bold; text-align: center;"></p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eeeeee; padding-bottom: 8px;">
+        <h2 style="border: none; margin: 0; padding: 0;">展示作品一覧</h2>
+        <button type="button" onclick="loadGallery()" style="background-color: #f0f2f5; border: 1px solid #d0d5dd; border-radius: 15px; padding: 5px 12px; cursor: pointer; font-weight: bold; font-size: 0.85em;">🔄 更新</button>
+      </div>
+
+      <div id="gallery-list" class="gallery-grid">
+        <p style="color: #888; text-align: center; grid-column: 1 / -1;">作品を読み込み中...</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="image-modal" onclick="closeModal()">
+    <img id="modal-img" src="" alt="拡大画像">
+  </div>
+
+  <footer>
+    <p>&copy; 2026 ちぃむぐりる</p>
+  </footer>
+
+  <script>
+    const GAS_URL = "https://script.google.com/macros/s/AKfycby2r_NRzBfwQFhOPPA3pFu7W8rxo67pAVZ86lqbQyTPIiEgHiTDfOn5GbXVLYnXl_r6/exec";
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR5ThxZYdlVKzZlB5lHkFBiHIxw5q54cobkDibPLceglpXOmpNsZ4D9s5Wit04a2DwoNBoT9K-liQEm/pub?output=csv";
+
+    // あとでここに手描ききゅぷぅの画像パスを入れる（例: "kyupuu.png"）
+    const KYUPUU_IMG_SRC = "";
+
+    function parseCSV(text) {
+      const lines = text.split("\n");
+      return lines.map(line => {
+        const row = [];
+        let inQuotes = false;
+        let entry = "";
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            row.push(entry.trim());
+            entry = "";
+          } else {
+            entry += char;
+          }
+        }
+        row.push(entry.trim());
+        return row;
+      });
+    }
+
+    async function submitArt() {
+      const name = document.getElementById("art-name").value.trim();
+      const title = document.getElementById("art-title").value.trim();
+      const comment = document.getElementById("art-comment").value.trim();
+      const password = document.getElementById("art-pass").value.trim();
+      const fileInput = document.getElementById("art-file");
+      const btn = document.getElementById("submit-btn");
+      const status = document.getElementById("status-msg");
+
+      if (!name || !title || !password || fileInput.files.length === 0) {
+        alert("お名前、タイトル、消去パス、画像ファイルはすべて入力してね！");
+        return;
+      }
+
+      const file = fileInput.files[0];
+      btn.disabled = true;
+      btn.textContent = "アップロード中...（数秒かかります）";
+      status.style.color = "#333";
+      status.textContent = "";
+
+      const reader = new FileReader();
+      reader.onload = async function() {
+        const base64Data = reader.result.split(",")[1];
+        const payload = {
+          name: name, title: title, comment: comment, password: password,
+          fileName: file.name, mimeType: file.type, image: base64Data
+        };
+
+        try {
+          await fetch(GAS_URL, { method: "POST", body: JSON.stringify(payload) });
+
+          status.style.color = "#2e7d32";
+          status.textContent = "✨ 投稿完了！作品が追加されました。";
+          
+          document.getElementById("art-name").value = "";
+          document.getElementById("art-title").value = "";
+          document.getElementById("art-comment").value = "";
+          document.getElementById("art-pass").value = "";
+          fileInput.value = "";
+          
+          setTimeout(loadGallery, 4000);
+        } catch (err) {
+          status.style.color = "#d9534f";
+          status.textContent = "❌ エラーが発生しました。";
+          console.error(err);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "画廊に飾る！";
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function pushKyupuu(btn, key) {
+      let count = parseInt(localStorage.getItem(key)) || 0;
+      if (count > 0) return;
+
+      count = 1;
+      localStorage.setItem(key, count);
+      btn.textContent = `✨ ${count} きゅぷぅ`;
+      btn.classList.add("is-pushed");
+
+      if (KYUPUU_IMG_SRC) {
+        const popup = document.createElement("img");
+        popup.src = KYUPUU_IMG_SRC;
+        popup.className = "kyupuu-popup";
+        document.body.appendChild(popup);
+        setTimeout(() => popup.remove(), 1450);
+      }
+    }
+
+    async function loadGallery() {
+      const listArea = document.getElementById("gallery-list");
+      try {
+        const response = await fetch(CSV_URL + "&t=" + new Date().getTime() + Math.random());
+        const csvText = await response.text();
+        const rows = parseCSV(csvText);
+        
+        const items = [];
+        for (let i = 1; i < rows.length; i++) {
+          items.push({ rowNumber: i + 1, cols: rows[i] });
+        }
+        items.reverse();
+
+        if (items.length === 0 || (items.length === 1 && items[0].cols[0] === "")) {
+          listArea.innerHTML = '<p style="color: #888; text-align: center; grid-column: 1 / -1;">まだ作品がありません。最初の1枚を飾ろう！</p>';
+          return;
+        }
+
+        listArea.innerHTML = "";
+        items.forEach(item => {
+          const cols = item.cols;
+          const rowNumber = item.rowNumber;
+          if (!cols || cols.length < 5) return;
+
+          const time = cols[0] || "";
+          const name = cols[1] || "名無し";
+          const title = cols[2] || "無題";
+          const comment = cols[3] || "";
+          const imageUrl = (cols[4] || "").trim();
+
+          if (!imageUrl) return;
+
+          const storageKey = "kyupuu_row_" + rowNumber + "_" + encodeURIComponent(title);
+          const savedCount = parseInt(localStorage.getItem(storageKey)) || 0;
+
+          const card = document.createElement("div");
+          card.className = "art-card";
+          
+          const img = document.createElement("img");
+          img.src = imageUrl;
+          img.alt = title;
+          img.onclick = function() { openModal(imageUrl); };
+          card.appendChild(img);
+
+          const info = document.createElement("div");
+          info.className = "art-info";
+
+          const titleEl = document.createElement("h3");
+          titleEl.className = "art-title";
+          titleEl.textContent = title;
+          info.appendChild(titleEl);
+
+          if (comment) {
+            const commentEl = document.createElement("p");
+            commentEl.className = "art-comment";
+            commentEl.textContent = comment;
+            info.appendChild(commentEl);
+          }
+
+          const metaEl = document.createElement("p");
+          metaEl.className = "art-meta";
+          metaEl.textContent = `作者: ${name} / ${time}`;
+          info.appendChild(metaEl);
+
+          // きゅぷぅボタンをDOMで安全に作成
+          const kyupuuBtn = document.createElement("button");
+          kyupuuBtn.type = "button";
+          kyupuuBtn.className = "kyupuu-btn";
+          if (savedCount > 0) {
+            kyupuuBtn.textContent = `✨ ${savedCount} きゅぷぅ`;
+            kyupuuBtn.classList.add("is-pushed");
+          } else {
+            kyupuuBtn.textContent = "✨ きゅぷぅする！";
+          }
+          kyupuuBtn.addEventListener("click", function() {
+            pushKyupuu(kyupuuBtn, storageKey);
+          });
+          info.appendChild(kyupuuBtn);
+
+          // 削除ボタンもDOMで安全に作成
+          const delBtn = document.createElement("button");
+          delBtn.type = "button";
+          delBtn.textContent = "🗑️ この絵を消す";
+          delBtn.style.cssText = "background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; border-radius: 4px; padding: 4px 8px; font-size: 0.8em; font-weight: bold; cursor: pointer; margin-top: 6px;";
+          delBtn.addEventListener("click", function() {
+            deleteArt(rowNumber);
+          });
+          info.appendChild(delBtn);
+
+          card.appendChild(info);
+          listArea.appendChild(card);
+        });
+      } catch (err) {
+        listArea.innerHTML = '<p style="color: #d9534f; text-align: center; grid-column: 1 / -1;">作品の読み込みに失敗しました。</p>';
+        console.error(err);
+      }
+    }
+
+    async function deleteArt(rowNumber) {
+      const password = prompt("投稿したときに設定した「消去パス」を入力してね！");
+      if (!password) return;
+
+      if (!confirm("本当にこの作品を消去してもいい？")) return;
+
+      const payload = {
+        action: "delete",
+        rowIndex: rowNumber,
+        password: password
+      };
+
+      try {
+        const res = await fetch(GAS_URL, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+
+        if (result.status === "success") {
+          alert("✨ 作品を消去しました！");
+          setTimeout(loadGallery, 3000);
+        } else {
+          alert("❌ 削除失敗: " + result.message);
+        }
+      } catch (err) {
+        alert("❌ 通信エラーが発生しました。");
+        console.error(err);
+      }
+    }
+
+    function openModal(url) {
+      const modal = document.getElementById("image-modal");
+      const modalImg = document.getElementById("modal-img");
+      modalImg.src = url;
+      modal.style.display = "flex";
+    }
+
+    function closeModal() {
+      const modal = document.getElementById("image-modal");
+      modal.style.display = "none";
+    }
+
+    window.onload = loadGallery;
+  </script>
+</body>
+</html>
