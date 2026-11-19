@@ -80,18 +80,6 @@
       100% { opacity: 0; margin-top: -40px; }
     }
 
-    /* ついでに飛び出すカオス文字 */
-    .kyupuu-text {
-      position: fixed;
-      font-weight: 900;
-      color: #2980b9;
-      text-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff;
-      z-index: 10001;
-      pointer-events: none;
-      white-space: nowrap;
-      animation: chaosJiwarin 1.6s ease-out forwards;
-    }
-
     #image-modal {
       display: none; position: fixed; z-index: 9999; left: 0; top: 0;
       width: 100%; height: 100%; background-color: rgba(0,0,0,0.8);
@@ -173,7 +161,9 @@
     const GAS_URL = "https://script.google.com/macros/s/AKfycby2r_NRzBfwQFhOPPA3pFu7W8rxo67pAVZ86lqbQyTPIiEgHiTDfOn5GbXVLYnXl_r6/exec";
     const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR5ThxZYdlVKzZlB5lHkFBiHIxw5q54cobkDibPLceglpXOmpNsZ4D9s5Wit04a2DwoNBoT9K-liQEm/pub?output=csv";
 
+    // 手描ききゅぷぅの画像パス
     const KYUPUU_IMG_SRC = "OXRJ1806.PNG";
+    // 一度に出現させるきゅぷぅの数
     const KYUPUU_SPAWN_COUNT = 18;
 
     function parseCSV(text) {
@@ -251,8 +241,9 @@
       reader.readAsDataURL(file);
     }
 
+    // カオス大量きゅぷぅ演出（画像のみ！）
     function spawnChaosKyupuu() {
-      const shouts = ["きゅぷぅ！", "✨きゅぷぅ✨", "！？", "きゅぷぅ…", "きゅぷぅうう！！"];
+      if (!KYUPUU_IMG_SRC) return;
 
       for (let i = 0; i < KYUPUU_SPAWN_COUNT; i++) {
         const delay = Math.random() * 900;
@@ -263,29 +254,15 @@
           const size = 70 + Math.random() * 170;
           const rot = (Math.random() - 0.5) * 90;
 
-          if (KYUPUU_IMG_SRC) {
-            const popup = document.createElement("img");
-            popup.src = KYUPUU_IMG_SRC;
-            popup.className = "kyupuu-chaos";
-            popup.style.left = x + "vw";
-            popup.style.top = y + "vh";
-            popup.style.width = size + "px";
-            popup.style.transform = `rotate(${rot}deg)`;
-            document.body.appendChild(popup);
-            setTimeout(() => popup.remove(), 1850);
-          }
-
-          if (i % 3 === 0) {
-            const txt = document.createElement("div");
-            txt.className = "kyupuu-text";
-            txt.textContent = shouts[Math.floor(Math.random() * shouts.length)];
-            txt.style.left = Math.min(85, x + 3) + "vw";
-            txt.style.top = Math.max(8, y - 4) + "vh";
-            txt.style.fontSize = (16 + Math.random() * 20) + "px";
-            txt.style.transform = `rotate(${-rot * 0.5}deg)`;
-            document.body.appendChild(txt);
-            setTimeout(() => txt.remove(), 1650);
-          }
+          const popup = document.createElement("img");
+          popup.src = KYUPUU_IMG_SRC;
+          popup.className = "kyupuu-chaos";
+          popup.style.left = x + "vw";
+          popup.style.top = y + "vh";
+          popup.style.width = size + "px";
+          popup.style.transform = `rotate(${rot}deg)`;
+          document.body.appendChild(popup);
+          setTimeout(() => popup.remove(), 1850);
         }, delay);
       }
     }
@@ -369,79 +346,4 @@
           const kyupuuBtn = document.createElement("button");
           kyupuuBtn.type = "button";
           kyupuuBtn.className = "kyupuu-btn";
-          if (savedCount > 0) {
-            kyupuuBtn.textContent = `✨ ${savedCount} きゅぷぅ`;
-            kyupuuBtn.classList.add("is-pushed");
-          } else {
-            kyupuuBtn.textContent = "✨ きゅぷぅする！";
-          }
-          kyupuuBtn.addEventListener("click", function() {
-            pushKyupuu(kyupuuBtn, storageKey);
-          });
-          info.appendChild(kyupuuBtn);
-
-          const delBtn = document.createElement("button");
-          delBtn.type = "button";
-          delBtn.textContent = "🗑️ この絵を消す";
-          delBtn.style.cssText = "background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; border-radius: 4px; padding: 4px 8px; font-size: 0.8em; font-weight: bold; cursor: pointer; margin-top: 6px;";
-          delBtn.addEventListener("click", function() {
-            deleteArt(rowNumber);
-          });
-          info.appendChild(delBtn);
-
-          card.appendChild(info);
-          listArea.appendChild(card);
-        });
-      } catch (err) {
-        listArea.innerHTML = '<p style="color: #d9534f; text-align: center; grid-column: 1 / -1;">作品の読み込みに失敗しました。</p>';
-        console.error(err);
-      }
-    }
-
-    async function deleteArt(rowNumber) {
-      const password = prompt("投稿したときに設定した「消去パス」を入力してね！");
-      if (!password) return;
-
-      if (!confirm("本当にこの作品を消去してもいい？")) return;
-
-      const payload = {
-        action: "delete",
-        rowIndex: rowNumber,
-        password: password
-      };
-
-      try {
-        const res = await fetch(GAS_URL, {
-          method: "POST",
-          body: JSON.stringify(payload)
-        });
-        const result = await res.json();
-
-        if (result.status === "success") {
-          alert("✨ 作品を消去しました！");
-          setTimeout(loadGallery, 3000);
-        } else {
-          alert("❌ 削除失敗: " + result.message);
-        }
-      } catch (err) {
-        alert("❌ 通信エラーが発生しました。");
-        console.error(err);
-      }
-    }
-
-    function openModal(url) {
-      const modal = document.getElementById("image-modal");
-      const modalImg = document.getElementById("modal-img");
-      modalImg.src = url;
-      modal.style.display = "flex";
-    }
-
-    function closeModal() {
-      const modal = document.getElementById("image-modal");
-      modal.style.display = "none";
-    }
-
-    window.onload = loadGallery;
-  </script>
-</body>
-</html>
+          if (savedCount >
