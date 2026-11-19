@@ -271,16 +271,38 @@
       }
     }
 
-    function pushKyupuu(btn, key) {
-      let count = parseInt(localStorage.getItem(key), 10) || 0;
-      if (count > 0) return;
+    // オンライン合計を加算する処理
+    async function pushKyupuu(btn, localKey, rowNumber, currentTotal) {
+      if (localStorage.getItem(localKey) === "1") return;
+      if (btn.dataset.sending === "1") return;
 
-      count = 1;
-      localStorage.setItem(key, String(count));
-      btn.textContent = "✨ " + count + " きゅぷぅ";
+      btn.dataset.sending = "1";
+      localStorage.setItem(localKey, "1");
       btn.classList.add("is-pushed");
 
+      // まず画面上の数字を仮で+1して、カオス演出を発動！
+      let optimisticTotal = currentTotal + 1;
+      btn.textContent = "✨ " + optimisticTotal + " きゅぷぅ";
       spawnChaosKyupuu();
+
+      try {
+        const res = await fetch(GAS_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "kyupuu",
+            rowIndex: rowNumber
+          })
+        });
+        const result = await res.json();
+        if (result.status === "success" && typeof result.count === "number") {
+          btn.textContent = "✨ " + result.count + " きゅぷぅ";
+          btn.dataset.total = String(result.count);
+        }
+      } catch (err) {
+        console.error("きゅぷぅ送信エラー:", err);
+      } finally {
+        btn.dataset.sending = "0";
+      }
     }
 
     async function loadGallery() {
@@ -312,11 +334,13 @@
           const title = cols[2] || "無題";
           const comment = cols[3] || "";
           const imageUrl = (cols[4] || "").trim();
+          // F列（インデックス5）からオンライン合計数を取得
+          const totalKyupuu = parseInt(cols[5], 10) || 0;
 
           if (!imageUrl) return;
 
-          const storageKey = "kyupuu_row_" + rowNumber + "_" + encodeURIComponent(title);
-          const savedCount = parseInt(localStorage.getItem(storageKey), 10) || 0;
+          const localKey = "kyupuu_pushed_row_" + rowNumber + "_" + encodeURIComponent(title);
+          const alreadyPushed = localStorage.getItem(localKey) === "1";
 
           const card = document.createElement("div");
           card.className = "art-card";
@@ -350,14 +374,20 @@
           const kyupuuBtn = document.createElement("button");
           kyupuuBtn.type = "button";
           kyupuuBtn.className = "kyupuu-btn";
-          if (savedCount > 0) {
-            kyupuuBtn.textContent = "✨ " + savedCount + " きゅぷぅ";
+          kyupuuBtn.dataset.total = String(totalKyupuu);
+
+          if (alreadyPushed) {
+            kyupuuBtn.textContent = "✨ " + totalKyupuu + " きゅぷぅ";
             kyupuuBtn.classList.add("is-pushed");
           } else {
-            kyupuuBtn.textContent = "✨ きゅぷぅする！";
+            kyupuuBtn.textContent = totalKyupuu > 0
+              ? "✨ きゅぷぅする！（現在 " + totalKyupuu + "）"
+              : "✨ きゅぷぅする！";
           }
+
           kyupuuBtn.addEventListener("click", function() {
-            pushKyupuu(kyupuuBtn, storageKey);
+            const latestTotal = parseInt(kyupuuBtn.dataset.total, 10) || 0;
+            pushKyupuu(kyupuuBtn, localKey, rowNumber, latestTotal);
           });
           info.appendChild(kyupuuBtn);
 
